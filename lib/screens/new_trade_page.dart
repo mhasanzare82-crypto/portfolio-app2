@@ -1703,6 +1703,25 @@ class _NotesPageState extends State<TradeNotesPage> {
                 ),
               ),
               const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 10,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _addImage,
+                      icon: const Icon(Icons.image_outlined),
+                      label: const Text('افزودن عکس'),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: _toggleRecording,
+                      icon: Icon(_recording ? Icons.stop : Icons.mic_none),
+                      label: Text(_recording ? 'پایان ضبط ویس' : 'ضبط ویس'),
+                    ),
+                  ],
+                ),
+              ),
               Expanded(
                 child: SingleChildScrollView(
                   controller: _editorScrollController,
