@@ -316,31 +316,31 @@ class _NotesPageState extends State<TradeNotesPage> {
       final imageTypes = <String>{};
       var rel = 1;
       for (final note in selected) {
-        body.write('<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>\${_xml(note.title)}</w:t></w:r></w:p>');
+        body.write('<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>${_xml(note.title)}</w:t></w:r></w:p>');
         for (final block in note.blocks) {
           if (block.type == 'text') {
             for (final line in block.value.split('\n')) {
-              body.write('<w:p><w:r><w:t xml:space="preserve">\${_xml(line)}</w:t></w:r></w:p>');
+              body.write('<w:p><w:r><w:t xml:space="preserve">${_xml(line)}</w:t></w:r></w:p>');
             }
           } else if (block.type == 'image' && await File(block.value).exists()) {
             final ext = p.extension(block.value).toLowerCase() == '.png' ? 'png' : 'jpg';
-            final name = 'image\${media.length + 1}.$ext';
-            final rid = 'rId\${rel++}';
+            final name = 'image${media.length + 1}.$ext';
+            final rid = 'rId${rel++}';
             media[name] = await File(block.value).readAsBytes();
             imageTypes.add(ext);
             relationships.add('<Relationship Id="$rid" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/$name"/>');
             body.write('<w:p><w:r><w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><wp:extent cx="5486400" cy="3657600"/><wp:docPr id="$rel" name="$name"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="$rel" name="$name"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="$rid" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="5486400" cy="3657600"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>');
           } else if (block.type == 'audio') {
-            body.write('<w:p><w:r><w:t>\${_xml('فایل صوتی: \${p.basename(block.value)}')}</w:t></w:r></w:p>');
+            body.write('<w:p><w:r><w:t>${_xml('فایل صوتی: ${p.basename(block.value)}')}</w:t></w:r></w:p>');
           }
         }
       }
-      final doc = '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>\${body.toString()}<w:sectPr/></w:body></w:document>';
+      final doc = '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body.toString()}<w:sectPr/></w:body></w:document>';
       final rels = '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId0" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>';
-      final docRels = '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\${relationships.join()}</Relationships>';
+      final docRels = '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${relationships.join()}</Relationships>';
       final types = StringBuffer('<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>');
       for (final ext in imageTypes) {
-        types.write('<Default Extension="$ext" ContentType="image/\${ext == 'jpg' ? 'jpeg' : ext}"/>');
+        types.write('<Default Extension="$ext" ContentType="image/${ext == 'jpg' ? 'jpeg' : ext}"/>');
       }
       types.write('</Types>');
       void add(String name, List<int> bytes) => archive.addFile(ArchiveFile(name, bytes.length, bytes));
@@ -348,7 +348,7 @@ class _NotesPageState extends State<TradeNotesPage> {
       add('_rels/.rels', utf8.encode(rels));
       add('word/document.xml', utf8.encode(doc));
       if (relationships.isNotEmpty) add('word/_rels/document.xml.rels', utf8.encode(docRels));
-      for (final item in media.entries) { add('word/media/\${item.key}', item.value); }
+      for (final item in media.entries) { add('word/media/${item.key}', item.value); }
       final bytes = ZipEncoder().encode(archive);
       if (bytes == null) throw StateError('DOCX generation failed');
       final temp = await getTemporaryDirectory();
@@ -466,7 +466,7 @@ class _NotesPageState extends State<TradeNotesPage> {
         if (file.bytes == null) continue;
         final archive = ZipDecoder().decodeBytes(file.bytes!);
         final entry = archive.files.where((x) => x.name == 'word/document.xml').firstOrNull;
-        if (entry == null) throw FormatException('فایل Word معتبر نیست: \${file.name}');
+        if (entry == null) throw FormatException('فایل Word معتبر نیست: ${file.name}');
         final xml = utf8.decode(entry.content as List<int>);
         String decodeXml(String value) => value.replaceAll('&amp;', '&').replaceAll('&lt;', '<')
             .replaceAll('&gt;', '>').replaceAll('&quot;', '"').replaceAll('&apos;', "'");
@@ -491,14 +491,14 @@ class _NotesPageState extends State<TradeNotesPage> {
             final media = archive.files.where((x) => x.name == target).firstOrNull;
             if (media == null) continue;
             final ext = p.extension(target).isEmpty ? '.png' : p.extension(target);
-            final dest = p.join(dir.path, 'docx_image_\${DateTime.now().microsecondsSinceEpoch}_\${imported.length}$ext');
+            final dest = p.join(dir.path, 'docx_image_${DateTime.now().microsecondsSinceEpoch}_${imported.length}$ext');
             await File(dest).writeAsBytes(media.content as List<int>, flush: true);
             blocks.add(NoteBlock('image', dest));
           }
         }
         final now = DateTime.now();
         imported.add(NoteItem(
-          id: '\${now.microsecondsSinceEpoch}_\${imported.length}',
+          id: '${now.microsecondsSinceEpoch}_${imported.length}',
           title: p.basenameWithoutExtension(file.name),
           blocks: blocks.isEmpty ? [const NoteBlock('text', '')] : blocks,
           createdAt: now, updatedAt: now, folderId: _currentFolderId,
@@ -508,7 +508,7 @@ class _NotesPageState extends State<TradeNotesPage> {
       _notes.insertAll(0, imported);
       await _persist();
       if (mounted) setState(() {});
-      _message('\${imported.length} فایل Word همراه متن و تصاویر وارد شد؛ نام هر فایل عنوان یادداشت شد.');
+      _message('${imported.length} فایل Word همراه متن و تصاویر وارد شد؛ نام هر فایل عنوان یادداشت شد.');
     } catch (e) {
       _message('ورود DOCX ناموفق بود: $e');
     }
