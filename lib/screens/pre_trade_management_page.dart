@@ -45,11 +45,11 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
           .map((item) => (item['item_title']?.toString() ?? '').trim())
           .where((line) => line.isNotEmpty)
           .join('\n');
-      final categoryName = _selectedCategory == 0
+      final categoryName = _selectedCategory == 2
           ? 'pre_trade_questions'
-          : _selectedCategory == 1
-              ? 'psychology_checklist'
-              : 'technical_checklist';
+          : _selectedCategory == 0
+              ? 'non_trading_checklist'
+              : 'trading_checklist';
       final path = await FilePicker.platform.saveFile(
         dialogTitle: 'خروجی گرفتن از $_currentTitle',
         fileName: '$categoryName.txt',
@@ -107,9 +107,9 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
 
   String get _currentCategory {
     switch (_selectedCategory) {
-      case 1:
+      case 0:
         return _psychology;
-      case 2:
+      case 1:
         return _technical;
       default:
         return _questions;
@@ -118,9 +118,9 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
 
   String get _currentTitle {
     switch (_selectedCategory) {
-      case 1:
+      case 0:
         return 'چک لیست های غیر معاملاتی';
-      case 2:
+      case 1:
         return 'چک لیست های معاملاتی';
       default:
         return 'سوالات قبل از معامله';
@@ -128,7 +128,7 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
   }
 
   String get _currentItemType {
-    return _selectedCategory == 0 ? 'question' : 'checklist';
+    return _selectedCategory == 2 ? 'question' : 'checklist';
   }
 
   // =========================================================
@@ -179,20 +179,33 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
       return;
     }
 
+    final lines = result.title
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+
+    if (lines.isEmpty) {
+      _showMessage('حداقل یک مورد وارد کن.');
+      return;
+    }
+
     try {
-      await _repository.createItem(
-        title: result.title,
-        category: _currentCategory,
-        itemType: _currentItemType,
-        isRequired: result.isRequired,
-        isEnabled: true,
-        folderName: result.folderName,
-      );
+      for (final line in lines) {
+        await _repository.createItem(
+          title: line,
+          category: _currentCategory,
+          itemType: _currentItemType,
+          isRequired: result.isRequired,
+          isEnabled: true,
+          folderName: result.folderName,
+        );
+      }
 
       await _loadItems();
 
       _showMessage(
-        'مورد جدید با موفقیت اضافه شد.',
+        '${numbers.formatInteger(lines.length)} مورد جدید با موفقیت اضافه شد.',
       );
     } catch (error) {
       _showMessage(
@@ -207,7 +220,7 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
     final result = await showDialog<Map<String, String>>(
         context: context,
         builder: (context) => AlertDialog(
-              title: Text(_selectedCategory == 0
+              title: Text(_selectedCategory == 2
                   ? 'افزودن چند سؤال'
                   : 'افزودن چند مورد چک‌لیست'),
               content: SizedBox(
@@ -745,8 +758,8 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
                       maxLines: 4,
                       decoration: InputDecoration(
                         labelText:
-                            _selectedCategory == 0 ? 'سؤال' : 'عنوان آیتم',
-                        hintText: _selectedCategory == 0
+                            _selectedCategory == 2 ? 'سؤال' : 'عنوان آیتم',
+                        hintText: _selectedCategory == 2
                             ? 'مثلاً آیا شرایط ورود طبق استراتژی من است؟'
                             : 'مثلاً قبل از ورود احساساتم را کنترل کرده‌ام',
                         border: const OutlineInputBorder(),
@@ -761,7 +774,7 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
                         'اجباری باشد',
                       ),
                       subtitle: Text(
-                        _selectedCategory == 0
+                        _selectedCategory == 2
                             ? 'کاربر باید به این سؤال پاسخ دهد.'
                             : 'کاربر باید این مورد را تأیید کند.',
                       ),
@@ -1184,18 +1197,6 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
         padding: const EdgeInsets.all(30),
         child: Column(
           children: [
-            Icon(
-              _selectedCategory == 0
-                  ? Icons.help_outline
-                  : _selectedCategory == 1
-                      ? Icons.psychology_outlined
-                      : Icons.engineering_outlined,
-              size: 54,
-              color: AppColors.button,
-            ),
-            const SizedBox(
-              height: 12,
-            ),
             Text(
               'هنوز موردی اضافه نشده است.',
               style: const TextStyle(
@@ -1207,7 +1208,7 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
               height: 8,
             ),
             Text(
-              _selectedCategory == 0
+              _selectedCategory == 2
                   ? 'سؤال‌هایی که می‌خواهی قبل از معامله پاسخ بدهی اضافه کن.'
                   : 'موارد چک‌لیست موردنظر خودت را اضافه کن.',
               textAlign: TextAlign.center,
@@ -1244,9 +1245,9 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
       appBar: AppBar(title: const Text('مدیریت سوالات و چک‌لیست‌ها')),
       body: SafeArea(child: Column(children: [
         Padding(padding: const EdgeInsets.fromLTRB(10, 12, 10, 4), child: Row(children: [
-          _buildCategoryButton(index: 0, title: 'سوالات قبل از معامله'),
-          _buildCategoryButton(index: 1, title: 'چک لیست های غیر معاملاتی'),
-          _buildCategoryButton(index: 2, title: 'چک لیست های معاملاتی'),
+          _buildCategoryButton(index: 0, title: 'چک لیست های غیر معاملاتی'),
+          _buildCategoryButton(index: 1, title: 'چک لیست های معاملاتی'),
+          _buildCategoryButton(index: 2, title: 'سوالات قبل از معامله'),
         ])),
         Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 8), child: Wrap(
           spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
