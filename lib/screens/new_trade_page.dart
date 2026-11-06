@@ -8,6 +8,7 @@ import 'package:archive/archive.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
@@ -231,7 +232,7 @@ class _NotesPageState extends State<TradeNotesPage> {
         final parts=item.split('|'); if(parts.length!=2)continue;
         final file=File(parts[1]); if(!await file.exists())continue;
         final bytes=await file.readAsBytes();
-        final loader=ui.FontLoader(parts[0])..addFont(Future.value(ByteData.sublistView(bytes)));
+        final loader=FontLoader(parts[0])..addFont(Future.value(ByteData.sublistView(bytes)));
         await loader.load();
       }
     } catch(e) { debugPrint('Custom font loading failed: $e'); }
@@ -338,7 +339,7 @@ class _NotesPageState extends State<TradeNotesPage> {
       final bytes=Uint8List.fromList(picked.files.single.bytes!); final family='CustomFont_${DateTime.now().millisecondsSinceEpoch}';
       final dir=Directory(p.join((await getApplicationDocumentsDirectory()).path,'custom_fonts')); if(!await dir.exists())await dir.create(recursive:true);
       final fontFile=File(p.join(dir.path,'$family${p.extension(picked.files.single.name)}')); await fontFile.writeAsBytes(bytes,flush:true);
-      final loader=ui.FontLoader(family)..addFont(Future.value(ByteData.sublistView(bytes))); await loader.load();
+      final loader=FontLoader(family)..addFont(Future.value(ByteData.sublistView(bytes))); await loader.load();
       final prefs=await SharedPreferences.getInstance(); final saved=prefs.getStringList('notes_custom_fonts_v1')??<String>[]; saved.add('$family|${fontFile.path}'); await prefs.setStringList('notes_custom_fonts_v1',saved);
       await NotesAppearanceSettings.setFonts(NotesAppearanceSettings.fonts.value.copyWith(appFontFamily:family,inputFontFamily:family));
       if(mounted)setState((){}); _message('فونت شخصی فعال شد.');
