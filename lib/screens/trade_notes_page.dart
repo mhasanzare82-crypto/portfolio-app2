@@ -58,6 +58,8 @@ class _NewTradePageState extends State<NewTradePage> {
 
   final ImagePicker _imagePicker = ImagePicker();
   final TradeNoteRepository _tradeNoteRepository = TradeNoteRepository.instance;
+  final NoteSubjectRepository _noteSubjectRepository = NoteSubjectRepository.instance;
+  final NoteTagRepository _noteTagRepository = NoteTagRepository.instance;
 
   List<Map<String, dynamic>> _tradeNotes = [];
   bool _tradeNotesLoading = false;
@@ -1731,6 +1733,36 @@ class _NewTradePageState extends State<NewTradePage> {
           source: note['source']?.toString(),
           sourceFileName: note['source_file_name']?.toString(),
         );
+        final subjectIds = <int>[];
+        for (final rawName in (note['export_subject_names'] as List? ?? [])) {
+          final name = rawName.toString().trim();
+          if (name.isEmpty) continue;
+          var subjects = await _noteSubjectRepository.getAllSubjects();
+          var match = subjects.where((row) =>
+              (row['subject_name']?.toString() ?? '').toLowerCase() == name.toLowerCase());
+          if (match.isEmpty) {
+            try {
+              await _noteSubjectRepository.createSubject(name: name);
+            } catch (_) {}
+            subjects = await _noteSubjectRepository.getAllSubjects();
+            match = subjects.where((row) =>
+                (row['subject_name']?.toString() ?? '').toLowerCase() == name.toLowerCase());
+          }
+          if (match.isNotEmpty) subjectIds.add((match.first['subject_id'] as num).toInt());
+        }
+        if (subjectIds.isNotEmpty) {
+          await _tradeNoteRepository.setNoteSubjects(newId, subjectIds);
+        }
+        final tagIds = <int>[];
+        for (final rawName in (note['export_tag_names'] as List? ?? [])) {
+          final name = rawName.toString().trim();
+          if (name.isEmpty) continue;
+          final tagId = await _noteTagRepository.createTag(name);
+          tagIds.add(tagId);
+        }
+        if (tagIds.isNotEmpty) {
+          await _tradeNoteRepository.setNoteTags(newId, tagIds);
+        }
         for (final rawMedia in (note['export_media'] as List? ?? [])) {
           if (rawMedia is! Map) continue;
           final archivePath = rawMedia['archive_path']?.toString() ?? '';
