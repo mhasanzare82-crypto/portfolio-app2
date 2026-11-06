@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'services/lbank_futures_symbols_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/home_page.dart';
@@ -7,6 +8,9 @@ import 'screens/color_settings_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Start loading the complete futures symbol list into memory immediately.
+  LBankFuturesSymbolsService.instance.load().catchError((_) => <String>[]);
 
   final prefs = await SharedPreferences.getInstance();
 
