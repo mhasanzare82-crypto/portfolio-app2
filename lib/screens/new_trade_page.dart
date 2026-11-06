@@ -405,48 +405,81 @@ class _NotesPageState extends State<TradeNotesPage> {
 
   Future<void> _importDocx() async {
     try {
-      final picked=await FilePicker.platform.pickFiles(type:FileType.custom,allowedExtensions:['docx'],withData:true);
-      if(picked==null||picked.files.single.bytes==null)return;
-      final archive=ZipDecoder().decodeBytes(picked.files.single.bytes!);
-      final entry=archive.files.where((x)=>x.name=='word/document.xml').firstOrNull;
-      if(entry==null)throw FormatException('فایل Word معتبر نیست');
-      final xml = utf8.decode(entry.content as List<int>);
-      String decodeXml(String value) => value.replaceAll('&amp;', '&').replaceAll('&lt;', '<')
-          .replaceAll('&gt;', '>').replaceAll('&quot;', '"').replaceAll('&apos;', "'");
-      final relEntry = archive.files.where((x) => x.name == 'word/_rels/document.xml.rels').firstOrNull;
-      final relXml = relEntry == null ? '' : utf8.decode(relEntry.content as List<int>);
-      final relTargets = <String, String>{};
-      for (final match in RegExp(r'<Relationship\\b([^>]*)/?>', caseSensitive: false).allMatches(relXml)) {
-        final attrs = match.group(1)!;
-        final id = RegExp(r'Id="([^"]+)"').firstMatch(attrs)?.group(1);
-        final target = RegExp(r'Target="([^"]+)"').firstMatch(attrs)?.group(1);
-        if (id != null && target != null) relTargets[id] = p.posix.normalize(p.posix.join('word', target));
+      final picked = await FilePicker.platform.pickFiles(
+        type: FileType.custom, allowedExtensions: ['docx'], withData: true, allowMultiple: true,
+      );
+      if (picked == null || picked.files.isEmpty) return;
+      final chosen = <String>{...picked.files.map((f) => f.name)};
+      if (picked.files.length > 1) {
+        final confirmed = await showDialog<bool>(context: context, builder: (ctx) =>
+          StatefulBuilder(builder: (ctx, refresh) => AlertDialog(
+            title: const Text('انتخاب فایل‌های Word برای ورود'),
+            content: SizedBox(width: double.maxFinite, height: 360, child: ListView(children: [
+              for (final file in picked.files) CheckboxListTile(
+                value: chosen.contains(file.name),
+                title: Text(file.name, textDirection: TextDirection.ltr),
+                onChanged: (v) => refresh(() { if (v == true) { chosen.add(file.name); } else { chosen.remove(file.name); } }),
+              ),
+            ])),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('انصراف')),
+              FilledButton(onPressed: chosen.isEmpty ? null : () => Navigator.pop(ctx, true), child: const Text('وارد کردن انتخاب‌شده‌ها')),
+            ],
+          )));
+        if (confirmed != true) return;
       }
-      final blocks = <NoteBlock>[];
-      for (final paragraph in RegExp(r'<w:p(?:\\s[^>]*)?>(.*?)</w:p>', dotAll: true).allMatches(xml)) {
-        final part = paragraph.group(1)!;
-        final text = RegExp(r'<w:t(?:\\s[^>]*)?>(.*?)</w:t>', dotAll: true)
-            .allMatches(part).map((m) => decodeXml(m.group(1)!)).join();
-        if (text.isNotEmpty) blocks.add(NoteBlock('text', text));
-        for (final blip in RegExp(r'<a:blip[^>]*r:embed="([^"]+)"').allMatches(part)) {
-          final target = relTargets[blip.group(1)];
-          if (target == null) continue;
-          final media = archive.files.where((x) => x.name == target).firstOrNull;
-          if (media == null) continue;
-          final ext = p.extension(target).isEmpty ? '.png' : p.extension(target);
-          final dest = p.join((await _dir()).path, 'docx_image_${DateTime.now().microsecondsSinceEpoch}$ext');
-          await File(dest).writeAsBytes(media.content as List<int>, flush: true);
-          blocks.add(NoteBlock('image', dest));
+      final dir = await _dir();
+      final imported = <NoteItem>[];
+      for (final file in picked.files.where((f) => chosen.contains(f.name))) {
+        if (file.bytes == null) continue;
+        final archive = ZipDecoder().decodeBytes(file.bytes!);
+        final entry = archive.files.where((x) => x.name == 'word/document.xml').firstOrNull;
+        if (entry == null) throw FormatException('فایل Word معتبر نیست: \${file.name}');
+        final xml = utf8.decode(entry.content as List<int>);
+        String decodeXml(String value) => value.replaceAll('&amp;', '&').replaceAll('&lt;', '<')
+            .replaceAll('&gt;', '>').replaceAll('&quot;', '"').replaceAll('&apos;', "'");
+        final relEntry = archive.files.where((x) => x.name == 'word/_rels/document.xml.rels').firstOrNull;
+        final relXml = relEntry == null ? '' : utf8.decode(relEntry.content as List<int>);
+        final relTargets = <String, String>{};
+        for (final match in RegExp(r'<Relationship\b([^>]*)/?>', caseSensitive: false).allMatches(relXml)) {
+          final attrs = match.group(1)!;
+          final id = RegExp(r'Id="([^"]+)"').firstMatch(attrs)?.group(1);
+          final target = RegExp(r'Target="([^"]+)"').firstMatch(attrs)?.group(1);
+          if (id != null && target != null) relTargets[id] = p.posix.normalize(p.posix.join('word', target));
         }
+        final blocks = <NoteBlock>[];
+        for (final paragraph in RegExp(r'<w:p(?:\s[^>]*)?>(.*?)</w:p>', dotAll: true).allMatches(xml)) {
+          final part = paragraph.group(1)!;
+          final text = RegExp(r'<w:t(?:\s[^>]*)?>(.*?)</w:t>', dotAll: true)
+              .allMatches(part).map((m) => decodeXml(m.group(1)!)).join();
+          if (text.isNotEmpty) blocks.add(NoteBlock('text', text));
+          for (final blip in RegExp(r'<a:blip[^>]*r:embed="([^"]+)"').allMatches(part)) {
+            final target = relTargets[blip.group(1)];
+            if (target == null) continue;
+            final media = archive.files.where((x) => x.name == target).firstOrNull;
+            if (media == null) continue;
+            final ext = p.extension(target).isEmpty ? '.png' : p.extension(target);
+            final dest = p.join(dir.path, 'docx_image_\${DateTime.now().microsecondsSinceEpoch}_\${imported.length}$ext');
+            await File(dest).writeAsBytes(media.content as List<int>, flush: true);
+            blocks.add(NoteBlock('image', dest));
+          }
+        }
+        final now = DateTime.now();
+        imported.add(NoteItem(
+          id: '\${now.microsecondsSinceEpoch}_\${imported.length}',
+          title: p.basenameWithoutExtension(file.name),
+          blocks: blocks.isEmpty ? [const NoteBlock('text', '')] : blocks,
+          createdAt: now, updatedAt: now, folderId: _currentFolderId,
+        ));
       }
-      final now = DateTime.now();
-      final title = p.basenameWithoutExtension(picked.files.single.name);
-      _notes.insert(0, NoteItem(id: '${now.microsecondsSinceEpoch}', title: title,
-        blocks: blocks.isEmpty ? [const NoteBlock('text', '')] : blocks,
-        createdAt: now, updatedAt: now, folderId: _currentFolderId));
-      await _persist(); if (mounted) setState(() {});
-      _message('فایل Word همراه متن و تصاویر وارد شد؛ نام فایل عنوان یادداشت شد.');
-    } catch(e) { _message('ورود DOCX ناموفق بود: $e'); }
+      if (imported.isEmpty) return;
+      _notes.insertAll(0, imported);
+      await _persist();
+      if (mounted) setState(() {});
+      _message('\${imported.length} فایل Word همراه متن و تصاویر وارد شد؛ نام هر فایل عنوان یادداشت شد.');
+    } catch (e) {
+      _message('ورود DOCX ناموفق بود: $e');
+    }
   }
 
   Future<void> _addCustomFont() async {
