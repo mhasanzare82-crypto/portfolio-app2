@@ -1044,6 +1044,23 @@ class _NotesPageState extends State<TradeNotesPage> {
           }
         }
 
+        Future<void> shareDrawing() async {
+          try {
+            finishStroke();
+            final boundary = paintKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+            final rendered = await boundary.toImage(pixelRatio: math.min(3.0, imageWidth / canvasWidth));
+            final data = await rendered.toByteData(format: ui.ImageByteFormat.png);
+            rendered.dispose();
+            if (data == null) throw StateError('ساخت تصویر ناموفق بود');
+            final temp = await getTemporaryDirectory();
+            final file = File(p.join(temp.path, 'drawing_export_${DateTime.now().microsecondsSinceEpoch}.png'));
+            await file.writeAsBytes(data.buffer.asUint8List(), flush: true);
+            await Share.shareXFiles([XFile(file.path, mimeType: 'image/png')], text: 'تصویر نقاشی‌شده');
+          } catch (e) {
+            if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('خروجی تصویر ناموفق بود: $e')));
+          }
+        }
+
         return Dialog(
           insetPadding: const EdgeInsets.all(12),
           child: SizedBox(
@@ -1184,6 +1201,10 @@ class _NotesPageState extends State<TradeNotesPage> {
                       TextButton(
                           onPressed: () => Navigator.pop(ctx),
                           child: const Text('انصراف')),
+                      TextButton.icon(
+                          onPressed: shareDrawing,
+                          icon: const Icon(Icons.download),
+                          label: const Text('خروجی تصویر')),
                       const SizedBox(width: 8),
                       FilledButton(
                           onPressed: () async {
