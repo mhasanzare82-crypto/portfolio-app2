@@ -56,6 +56,45 @@ class _NotesAppearanceSettingsPageState
     'delete': 'رنگ حذف',
   };
 
+  Future<void> _saveCurrentAsTheme() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ساخت قالب از تنظیمات فعلی'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textDirection: TextDirection.rtl,
+          decoration: const InputDecoration(labelText: 'نام قالب'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.isNotEmpty) Navigator.pop(ctx, value);
+            },
+            child: const Text('ذخیره قالب'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null) return;
+    final now = DateTime.now().microsecondsSinceEpoch.toString();
+    final fonts = NotesAppearanceSettings.fonts.value;
+    await NotesAppearanceSettings.saveCustomTheme(NoteTextTheme(
+      id: 'custom_$now',
+      name: name,
+      backgroundColor: NotesAppearanceSettings.color('inputBackground').value,
+      textColor: NotesAppearanceSettings.color('inputText').value,
+      fontFamily: fonts.inputFontFamily,
+      fontSize: fonts.inputTextSize,
+    ));
+    if (mounted) setState(() {});
+  }
+
   Future<void> _selectColor(String key) async {
     final selected = await showDialog<Color>(
       context: context,
