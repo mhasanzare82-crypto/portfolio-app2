@@ -1,0 +1,166 @@
+import 'package:flutter/material.dart';
+import '../notes_appearance_settings.dart';
+
+class NotesAppearanceSettingsPage extends StatefulWidget {
+  const NotesAppearanceSettingsPage({super.key});
+
+  @override
+  State<NotesAppearanceSettingsPage> createState() =>
+      _NotesAppearanceSettingsPageState();
+}
+
+class _NotesAppearanceSettingsPageState
+    extends State<NotesAppearanceSettingsPage> {
+  final List<Color> _palette = [
+    const Color(0xFF0D1117),
+    const Color(0xFF161B22),
+    const Color(0xFF21262D),
+    Colors.white,
+    Colors.black,
+    Colors.grey,
+    Colors.blue,
+    Colors.lightBlue,
+    Colors.green,
+    Colors.red,
+    Colors.orange,
+    Colors.amber,
+    Colors.purple,
+    Colors.teal,
+    Colors.pink,
+  ];
+
+  final Map<String, String> _labels = {
+    'pageBackground': 'پس‌زمینه صفحه',
+    'appBarBackground': 'پس‌زمینه نوار بالا',
+    'appBarText': 'متن نوار بالا',
+    'appBarIcon': 'آیکون نوار بالا',
+    'cardBackground': 'پس‌زمینه باکس‌ها',
+    'primaryText': 'متن اصلی',
+    'secondaryText': 'متن فرعی',
+    'icon': 'رنگ آیکون‌ها',
+    'divider': 'خطوط جداکننده',
+    'inputBackground': 'پس‌زمینه ورودی',
+    'inputBorder': 'حاشیه ورودی',
+    'inputText': 'متن ورودی',
+    'hintText': 'متن راهنما',
+    'buttonBackground': 'پس‌زمینه دکمه',
+    'buttonText': 'متن دکمه',
+    'floatingButtonBackground': 'پس‌زمینه دکمه شناور',
+    'floatingButtonText': 'متن دکمه شناور',
+    'dialogBackground': 'پس‌زمینه پنجره',
+    'menuBackground': 'پس‌زمینه منو',
+    'snackbarBackground': 'پس‌زمینه پیام',
+    'snackbarText': 'متن پیام',
+    'toolbarBackground': 'پس‌زمینه ابزارها',
+    'recording': 'رنگ ضبط',
+    'delete': 'رنگ حذف',
+  };
+
+  Future<void> _selectColor(String key) async {
+    final selected = await showDialog<Color>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(_labels[key] ?? key),
+        content: Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: _palette.map((color) {
+            return InkWell(
+              onTap: () => Navigator.pop(context, color),
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.grey),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+
+    if (selected != null) {
+      await NotesAppearanceSettings.setColor(key, selected);
+      if (mounted) setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: NotesAppearanceSettings.color('pageBackground'),
+      appBar: AppBar(
+        title: const Text('تنظیمات ظاهر یادداشت‌ها'),
+        backgroundColor: NotesAppearanceSettings.color('appBarBackground'),
+        foregroundColor: NotesAppearanceSettings.color('appBarText'),
+        actions: [
+          IconButton(
+            tooltip: 'بازنشانی تنظیمات',
+            icon: const Icon(Icons.restart_alt),
+            onPressed: () async {
+              await NotesAppearanceSettings.reset();
+              if (mounted) setState(() {});
+            },
+          ),
+        ],
+      ),
+      body: ValueListenableBuilder<Map<String, Color>>(
+        valueListenable: NotesAppearanceSettings.colors,
+        builder: (context, colors, child) {
+          return ListView(
+            padding: const EdgeInsets.all(12),
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  'تنظیم رنگ بخش‌های مختلف یادداشت‌ها',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              ..._labels.entries.map((entry) {
+                final color = colors[entry.key] ?? Colors.white;
+
+                return Card(
+                  color: NotesAppearanceSettings.color('cardBackground'),
+                  child: ListTile(
+                    title: Text(
+                      entry.value,
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        color: NotesAppearanceSettings.color('primaryText'),
+                      ),
+                    ),
+                    leading: GestureDetector(
+                      onTap: () => _selectColor(entry.key),
+                      child: Container(
+                        width: 35,
+                        height: 35,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.grey),
+                        ),
+                      ),
+                    ),
+                    trailing: Icon(
+                      Icons.palette_outlined,
+                      color: NotesAppearanceSettings.color('icon'),
+                    ),
+                    onTap: () => _selectColor(entry.key),
+                  ),
+                );
+              }),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
