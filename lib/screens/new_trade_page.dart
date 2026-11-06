@@ -281,10 +281,36 @@ class _NotesPageState extends State<TradeNotesPage> {
     }
   }
 
+  Future<List<NoteItem>?> _chooseNotes({required String title, required String action}) async {
+    final selected = <String>{..._notes.map((n) => n.id)};
+    return showDialog<List<NoteItem>>(context: context, builder: (ctx) =>
+      StatefulBuilder(builder: (ctx, refresh) => AlertDialog(
+        title: Text(title),
+        content: SizedBox(width: double.maxFinite, height: 360, child: Column(children: [
+          Row(children: [
+            TextButton(onPressed: () => refresh(() => selected.addAll(_notes.map((n) => n.id))), child: const Text('انتخاب همه')),
+            TextButton(onPressed: () => refresh(selected.clear), child: const Text('لغو انتخاب')),
+          ]),
+          Expanded(child: ListView(children: [
+            for (final note in _notes) CheckboxListTile(
+              value: selected.contains(note.id), title: Text(note.title, textDirection: TextDirection.rtl),
+              onChanged: (v) => refresh(() { if (v == true) { selected.add(note.id); } else { selected.remove(note.id); } }),
+            ),
+          ])),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+          FilledButton(onPressed: selected.isEmpty ? null : () => Navigator.pop(ctx, _notes.where((n) => selected.contains(n.id)).toList()), child: Text(action)),
+        ],
+      )));
+  }
+
   Future<void> _exportAllNotesDocx() async {
+    final selected = await _chooseNotes(title: 'انتخاب موضوعات برای خروجی DOCX', action: 'ادامه');
+    if (selected == null || selected.isEmpty) return;
     try {
       final body=StringBuffer();
-      for(final note in _notes) {
+      for(final note in selected) {
         body.write('<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>${_xml(note.title)}</w:t></w:r></w:p>');
         for(final block in note.blocks.where((b)=>b.type=='text')) {
           for(final line in block.value.split('\n')) body.write('<w:p><w:r><w:t xml:space="preserve">${_xml(line)}</w:t></w:r></w:p>');
@@ -297,17 +323,19 @@ class _NotesPageState extends State<TradeNotesPage> {
       final document=utf8.encode(doc);
       archive.addFile(ArchiveFile('[Content_Types].xml',types.length,types)); archive.addFile(ArchiveFile('_rels/.rels',rels.length,rels)); archive.addFile(ArchiveFile('word/document.xml',document.length,document));
       final bytes=ZipEncoder().encode(archive); if(bytes==null)throw StateError('DOCX generation failed');
-      final temp=await getTemporaryDirectory(); final file=File(p.join(temp.path,'all_notes.docx')); await file.writeAsBytes(bytes,flush:true);
+      final temp=await getTemporaryDirectory(); final file=File(p.join(temp.path,'selected_notes.docx')); await file.writeAsBytes(bytes,flush:true);
       await Share.shareXFiles([XFile(file.path,mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document')],text:'خروجی Word همه یادداشت‌ها');
     } catch(e) { _message('خروجی DOCX ناموفق بود: $e'); }
   }
 
   Future<void> _exportAllNotesZip() async {
+    final selected = await _chooseNotes(title: 'انتخاب موضوعات برای خروجی ZIP', action: 'ادامه');
+    if (selected == null || selected.isEmpty) return;
     try {
       final archive = Archive();
       final all = <Map<String, dynamic>>[];
       var i = 0;
-      for (final n in _notes) {
+      for (final n in selected) {
         final data = n.toJson();
         final blocks = <Map<String, dynamic>>[];
         for (final b in n.blocks) {
@@ -353,9 +381,24 @@ class _NotesPageState extends State<TradeNotesPage> {
         }
         map['blocks']=blocks; imported.add(NoteItem.fromJson(map));
       }
-      final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:Text('وارد کردن یادداشت‌ها'),content:Text('${imported.length} یادداشت اضافه شود؟'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:Text('انصراف')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:Text('افزودن'))]));
-      if(ok!=true)return; final ids=_notes.map((x)=>x.id).toSet();
-      for(final n in imported){_notes.add(ids.contains(n.id)?NoteItem(id:'${n.id}_imported_${DateTime.now().microsecondsSinceEpoch}',title:n.title,blocks:n.blocks,createdAt:n.createdAt,updatedAt:n.updatedAt,folderId:n.folderId):n);}
+      final selectedIds = <String>{...imported.map((n) => n.id)};
+      final ok = await showDialog<bool>(context: context, builder: (ctx) =>
+        StatefulBuilder(builder: (ctx, refresh) => AlertDialog(
+          title: const Text('انتخاب موضوعات برای ورود'),
+          content: SizedBox(width: double.maxFinite, height: 360, child: ListView(children: [
+            for (final note in imported) CheckboxListTile(
+              value: selectedIds.contains(note.id), title: Text(note.title, textDirection: TextDirection.rtl),
+              onChanged: (v) => refresh(() { if (v == true) { selectedIds.add(note.id); } else { selectedIds.remove(note.id); } }),
+            ),
+          ])),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('انصراف')),
+            FilledButton(onPressed: selectedIds.isEmpty ? null : () => Navigator.pop(ctx, true), child: const Text('وارد کردن انتخاب‌شده‌ها')),
+          ],
+        )));
+      if (ok != true) return;
+      final ids = _notes.map((x) => x.id).toSet();
+      for (final n in imported.where((x) => selectedIds.contains(x.id))) {_notes.add(ids.contains(n.id)?NoteItem(id:'${n.id}_imported_${DateTime.now().microsecondsSinceEpoch}',title:n.title,blocks:n.blocks,createdAt:n.createdAt,updatedAt:n.updatedAt,folderId:n.folderId):n);}
       await _persist(); if(mounted)setState((){}); _message('یادداشت‌ها وارد شدند.');
     } catch(e) { _message('ورود ZIP ناموفق بود: $e'); }
   }
@@ -367,11 +410,42 @@ class _NotesPageState extends State<TradeNotesPage> {
       final archive=ZipDecoder().decodeBytes(picked.files.single.bytes!);
       final entry=archive.files.where((x)=>x.name=='word/document.xml').firstOrNull;
       if(entry==null)throw FormatException('فایل Word معتبر نیست');
-      final xml=utf8.decode(entry.content as List<int>);
-      final lines=RegExp(r'<w:p(?:\s[^>]*)?>(.*?)</w:p>',dotAll:true).allMatches(xml).map((m)=>RegExp(r'<w:t(?:\s[^>]*)?>(.*?)</w:t>',dotAll:true).allMatches(m.group(1)!).map((t)=>t.group(1)!).join()).where((x)=>x.isNotEmpty).toList();
-      final now=DateTime.now(); final title=lines.isEmpty?p.basenameWithoutExtension(picked.files.single.name):lines.first;
-      _notes.insert(0,NoteItem(id:'${now.microsecondsSinceEpoch}',title:title,blocks:[NoteBlock('text',lines.skip(1).join('\n'))],createdAt:now,updatedAt:now,folderId:_currentFolderId));
-      await _persist(); if(mounted)setState((){}); _message('فایل Word وارد شد.');
+      final xml = utf8.decode(entry.content as List<int>);
+      String decodeXml(String value) => value.replaceAll('&amp;', '&').replaceAll('&lt;', '<')
+          .replaceAll('&gt;', '>').replaceAll('&quot;', '"').replaceAll('&apos;', "'");
+      final relEntry = archive.files.where((x) => x.name == 'word/_rels/document.xml.rels').firstOrNull;
+      final relXml = relEntry == null ? '' : utf8.decode(relEntry.content as List<int>);
+      final relTargets = <String, String>{};
+      for (final match in RegExp(r'<Relationship\\b([^>]*)/?>', caseSensitive: false).allMatches(relXml)) {
+        final attrs = match.group(1)!;
+        final id = RegExp(r'Id="([^"]+)"').firstMatch(attrs)?.group(1);
+        final target = RegExp(r'Target="([^"]+)"').firstMatch(attrs)?.group(1);
+        if (id != null && target != null) relTargets[id] = p.posix.normalize(p.posix.join('word', target));
+      }
+      final blocks = <NoteBlock>[];
+      for (final paragraph in RegExp(r'<w:p(?:\\s[^>]*)?>(.*?)</w:p>', dotAll: true).allMatches(xml)) {
+        final part = paragraph.group(1)!;
+        final text = RegExp(r'<w:t(?:\\s[^>]*)?>(.*?)</w:t>', dotAll: true)
+            .allMatches(part).map((m) => decodeXml(m.group(1)!)).join();
+        if (text.isNotEmpty) blocks.add(NoteBlock('text', text));
+        for (final blip in RegExp(r'<a:blip[^>]*r:embed="([^"]+)"').allMatches(part)) {
+          final target = relTargets[blip.group(1)];
+          if (target == null) continue;
+          final media = archive.files.where((x) => x.name == target).firstOrNull;
+          if (media == null) continue;
+          final ext = p.extension(target).isEmpty ? '.png' : p.extension(target);
+          final dest = p.join((await _dir()).path, 'docx_image_${DateTime.now().microsecondsSinceEpoch}$ext');
+          await File(dest).writeAsBytes(media.content as List<int>, flush: true);
+          blocks.add(NoteBlock('image', dest));
+        }
+      }
+      final now = DateTime.now();
+      final title = p.basenameWithoutExtension(picked.files.single.name);
+      _notes.insert(0, NoteItem(id: '${now.microsecondsSinceEpoch}', title: title,
+        blocks: blocks.isEmpty ? [const NoteBlock('text', '')] : blocks,
+        createdAt: now, updatedAt: now, folderId: _currentFolderId));
+      await _persist(); if (mounted) setState(() {});
+      _message('فایل Word همراه متن و تصاویر وارد شد؛ نام فایل عنوان یادداشت شد.');
     } catch(e) { _message('ورود DOCX ناموفق بود: $e'); }
   }
 
@@ -901,9 +975,10 @@ class _NotesPageState extends State<TradeNotesPage> {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              Image.file(File(path),
-                                  fit: BoxFit.fill,
-                                  filterQuality: FilterQuality.high),
+                              InteractiveViewer(
+                                minScale: 1, maxScale: 5, panEnabled: false, scaleEnabled: true,
+                                child: Image.file(File(path), fit: BoxFit.fill, filterQuality: FilterQuality.high),
+                              ),
                               GestureDetector(
                                 behavior: HitTestBehavior.opaque,
                                 onPanStart: (details) => refresh(() {
@@ -1160,6 +1235,34 @@ class _NotesPageState extends State<TradeNotesPage> {
     _notes.removeWhere((n) => n.id == note.id);
     await _persist();
     if (mounted) setState(() {});
+  }
+
+
+  Future<void> _exportNoteZip(NoteItem note) async {
+    try {
+      final archive = Archive();
+      final blocks = <Map<String, dynamic>>[];
+      var index = 0;
+      for (final block in note.blocks) {
+        var value = block.value;
+        if ((block.type == 'image' || block.type == 'audio') && await File(value).exists()) {
+          final name = 'media/${index++}${p.extension(value)}';
+          final bytes = await File(value).readAsBytes();
+          archive.addFile(ArchiveFile(name, bytes.length, bytes));
+          value = name;
+        }
+        blocks.add({'type': block.type, 'value': value});
+      }
+      final data = note.toJson()..['blocks'] = blocks;
+      final jsonBytes = utf8.encode(jsonEncode({'format': 'portfolio_notes_backup', 'notes': [data], 'folders': const []}));
+      archive.addFile(ArchiveFile('backup.json', jsonBytes.length, jsonBytes));
+      final bytes = ZipEncoder().encode(archive);
+      if (bytes == null) throw StateError('ZIP error');
+      final temp = await getTemporaryDirectory();
+      final file = File(p.join(temp.path, 'note_${note.id}.zip'));
+      await file.writeAsBytes(bytes, flush: true);
+      await Share.shareXFiles([XFile(file.path)], text: 'خروجی ZIP یادداشت ${note.title}');
+    } catch (e) { _message('خروجی ZIP ناموفق بود: $e'); }
   }
 
   String _xml(String s) => s
@@ -1780,6 +1883,7 @@ class _NotesPageState extends State<TradeNotesPage> {
                                               onSelected: (v) {
                                                 if (v == 'pin') _toggleNotePin(n);
                                                 if (v == 'docx') _exportDocx(n);
+                                                if (v == 'zip') _exportNoteZip(n);
                                                 if (v == 'delete') _delete(n);
                                                 if (v == 'move') _moveNote(n);
                                               },
@@ -1795,6 +1899,7 @@ class _NotesPageState extends State<TradeNotesPage> {
                                                     const PopupMenuItem(
                                                         value: 'move',
                                                         child: Text('انتقال به پوشه')),
+                                                    const PopupMenuItem(value: 'zip', child: Text('خروجی ZIP')),
                                                     const PopupMenuItem(
                                                         value: 'docx',
                                                         child: Text('خروجی DOCX')),
