@@ -64,7 +64,7 @@ class LBankFuturesSymbolsService {
       }
 
       _symbols = symbols.toList()..sort();
-      return symbols;
+      return List<String>.from(_symbols);
     } finally {
       client.close(force: true);
       _loading = null;
