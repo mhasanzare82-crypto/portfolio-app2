@@ -170,6 +170,30 @@ class AppColors {
     'chevron',
   ];
 
+  // نسخه تغییرات برای بازسازی ThemeData در ریشه برنامه
+  static final ValueNotifier<int> revision = ValueNotifier<int>(0);
+
+  static void notifyChanged() {
+    revision.value++;
+  }
+
+  // رنگ‌های پیش‌فرض اولیه؛ پیش از بارگذاری تنظیمات ذخیره‌شده ثبت می‌شوند.
+  static final Map<String, int> defaultColors = getCurrentColors();
+
+  static Future<void> restoreDefaults() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    for (final key in colorKeys) {
+      final value = defaultColors[key];
+      if (value == null) continue;
+
+      setColor(key, Color(value));
+      await prefs.setInt('app_color_$key', value);
+    }
+
+    notifyChanged();
+  }
+
   // ============================================================
   // دریافت رنگ بر اساس کلید
   // ============================================================
@@ -889,6 +913,8 @@ class _ColorSettingsPageState extends State<ColorSettingsPage> {
       result,
     );
 
+    AppColors.notifyChanged();
+
     if (!mounted) {
       return;
     }
@@ -1036,6 +1062,8 @@ class _ColorSettingsPageState extends State<ColorSettingsPage> {
       name,
     );
 
+    AppColors.notifyChanged();
+
     if (!mounted) {
       return;
     }
@@ -1108,6 +1136,43 @@ class _ColorSettingsPageState extends State<ColorSettingsPage> {
     _showMessage(
       'تنظیم «$name» حذف شد.',
     );
+  }
+
+  // ============================================================
+  // بازگردانی رنگ‌های پیش‌فرض
+  // ============================================================
+
+  Future<void> _restoreDefaults() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('بازگردانی رنگ‌های پیش‌فرض'),
+          content: const Text(
+            'تمام رنگ‌های برنامه به مقادیر اولیه بازگردند؟ تنظیمات رنگ ذخیره‌شده حذف نخواهند شد.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('انصراف'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('بازگردانی'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    await AppColors.restoreDefaults();
+
+    if (!mounted) return;
+
+    setState(() {});
+    _showMessage('رنگ‌های پیش‌فرض برنامه بازیابی شدند.');
   }
 
   // ============================================================
@@ -1200,6 +1265,13 @@ class _ColorSettingsPageState extends State<ColorSettingsPage> {
               label: const Text(
                 'ذخیره تنظیمات فعلی',
               ),
+            ),
+
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _restoreDefaults,
+              icon: const Icon(Icons.restart_alt),
+              label: const Text('بازگردانی رنگ‌های پیش‌فرض'),
             ),
           ],
         ),
