@@ -1060,7 +1060,7 @@ class _NotesPageState extends State<TradeNotesPage> {
                         height: canvasHeight,
                         child: ClipRect(
                           child: InteractiveViewer(
-                            minScale: 1, maxScale: 5, panEnabled: false, scaleEnabled: true,
+                            minScale: 1, maxScale: 5, panEnabled: true, scaleEnabled: true,
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
