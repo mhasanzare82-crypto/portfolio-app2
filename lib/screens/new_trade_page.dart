@@ -855,8 +855,8 @@ class _NotesPageState extends State<TradeNotesPage> {
     _editingId = note.id;
     _created = note.createdAt;
     _editingFolderId = note.folderId;
-    var targetBlock = -1;
-    var targetOffset = 0;
+    var targetBlock = matchBlockIndex == -1 ? -2 : -1;
+    var targetOffset = matchOffset ?? 0;
     final query = (searchTerm ?? '').trim();
     for (var i = 0; i < note.blocks.length; i++) {
       final b = note.blocks[i];
@@ -1918,8 +1918,8 @@ class _NotesPageState extends State<TradeNotesPage> {
                                       child: ListTile(
                                         onTap: () => _edit(hit.note,
                                           searchTerm: _search.text.trim(),
-                                          matchBlockIndex: hit.isTitle ? null : hit.blockIndex,
-                                          matchOffset: hit.isTitle ? null : hit.offset),
+                                          matchBlockIndex: hit.isTitle ? -1 : hit.blockIndex,
+                                          matchOffset: hit.offset),
                                         leading: Icon(hit.isTitle ? Icons.title : Icons.search,
                                           color: NotesAppearanceSettings.color('icon')),
                                         title: Text(hit.note.title,
