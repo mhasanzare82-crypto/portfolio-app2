@@ -989,7 +989,16 @@ class _NotesPageState extends State<TradeNotesPage> {
     }
   }
 
-  Future<void> _shareImageFile(String path) async {\n    try {\n      if (!await File(path).exists()) throw StateError('فایل تصویر پیدا نشد');\n      await Share.shareXFiles([XFile(path, mimeType: 'image/png')], text: 'تصویر یادداشت');\n    } catch (e) {\n      _message('ذخیره تصویر ناموفق بود: $e');\n    }\n  }\n\n  Future<void> _drawOnImage(int blockIndex) async {
+  Future<void> _shareImageFile(String path) async {
+    try {
+      if (!await File(path).exists()) throw StateError('فایل تصویر پیدا نشد');
+      await Share.shareXFiles([XFile(path, mimeType: 'image/png')], text: 'تصویر یادداشت');
+    } catch (e) {
+      _message('ذخیره تصویر ناموفق بود: $e');
+    }
+  }
+
+  Future<void> _drawOnImage(int blockIndex) async {
     final path = _draft[blockIndex].value;
     final paintKey = GlobalKey();
     final strokes = <_DrawingStroke>[];
@@ -1583,7 +1592,43 @@ class _NotesPageState extends State<TradeNotesPage> {
     return KeyedSubtree(key: _draftBlockKeys[index], child: child);
   }
 
-  Future<void> _chooseNoteTheme() async {\n    final selected = await showModalBottomSheet<String>(\n      context: context, isScrollControlled: true,\n      builder: (ctx) => SafeArea(child: ListView(padding: const EdgeInsets.all(12), shrinkWrap: true, children: [\n        const Padding(padding: EdgeInsets.all(12), child: Text('انتخاب قالب نوشته', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold))),\n        ...NotesAppearanceSettings.allThemes.map((theme) => Card(color: theme.background, child: ListTile(\n          title: Text(theme.name, textAlign: TextAlign.right, style: TextStyle(color: theme.foreground, fontFamily: theme.fontFamily, fontSize: theme.fontSize, fontWeight: FontWeight.bold)),\n          subtitle: Text('پیش‌نمایش متن نمونه با این قالب', textAlign: TextAlign.right, style: TextStyle(color: theme.foreground, fontFamily: theme.fontFamily, fontSize: theme.fontSize)),\n          trailing: Icon(Icons.check_circle_outline, color: theme.foreground),\n          onTap: () => Navigator.pop(ctx, theme.id),\n        ))),\n      ])),\n    );\n    if (selected != null && mounted) setState(() => _themeId = selected);\n  }\n\n  Future<void> _changeNoteColors() async {\n    final palette = [Colors.white, const Color(0xFFFFF3D6), const Color(0xFFE8F5E9), const Color(0xFFEAF2FF), const Color(0xFFFFEEF2), const Color(0xFF17212B), const Color(0xFF202124), Colors.black, Colors.blue, Colors.green, Colors.orange, Colors.purple];\n    final result = await showDialog<List<Color>>(context: context, builder: (ctx) {\n      var bg = _activeTextTheme.background; var fg = _activeTextTheme.foreground;\n      return StatefulBuilder(builder: (ctx, refresh) => AlertDialog(\n        title: const Text('رنگ‌های این نوشته'),\n        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [\n          const Text('پس‌زمینه'), Wrap(children: palette.map((c) => IconButton(onPressed: () => refresh(() => bg = c), icon: Icon(Icons.circle, color: c, size: 28), selected: bg == c)).toList()),\n          const Text('رنگ متن'), Wrap(children: palette.map((c) => IconButton(onPressed: () => refresh(() => fg = c), icon: Icon(Icons.circle, color: c, size: 28), selected: fg == c)).toList()),\n        ]),\n        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')), FilledButton(onPressed: () => Navigator.pop(ctx, [bg, fg]), child: const Text('اعمال'))],\n      ));\n    });\n    if (result == null) return;\n    final current = _activeTextTheme;\n    final id = 'edited_${_editingId ?? _id()}';\n    await NotesAppearanceSettings.saveCustomTheme(NoteTextTheme(id: id, name: 'قالب این نوشته', backgroundColor: result[0].value, textColor: result[1].value, fontFamily: current.fontFamily, fontSize: current.fontSize));\n    if (mounted) setState(() => _themeId = id);\n  }\n\n  Widget _buildEditor() => Scaffold(
+  Future<void> _chooseNoteTheme() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context, isScrollControlled: true,
+      builder: (ctx) => SafeArea(child: ListView(padding: const EdgeInsets.all(12), shrinkWrap: true, children: [
+        const Padding(padding: EdgeInsets.all(12), child: Text('انتخاب قالب نوشته', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold))),
+        ...NotesAppearanceSettings.allThemes.map((theme) => Card(color: theme.background, child: ListTile(
+          title: Text(theme.name, textAlign: TextAlign.right, style: TextStyle(color: theme.foreground, fontFamily: theme.fontFamily, fontSize: theme.fontSize, fontWeight: FontWeight.bold)),
+          subtitle: Text('پیش‌نمایش متن نمونه با این قالب', textAlign: TextAlign.right, style: TextStyle(color: theme.foreground, fontFamily: theme.fontFamily, fontSize: theme.fontSize)),
+          trailing: Icon(Icons.check_circle_outline, color: theme.foreground),
+          onTap: () => Navigator.pop(ctx, theme.id),
+        ))),
+      ])),
+    );
+    if (selected != null && mounted) setState(() => _themeId = selected);
+  }
+
+  Future<void> _changeNoteColors() async {
+    final palette = [Colors.white, const Color(0xFFFFF3D6), const Color(0xFFE8F5E9), const Color(0xFFEAF2FF), const Color(0xFFFFEEF2), const Color(0xFF17212B), const Color(0xFF202124), Colors.black, Colors.blue, Colors.green, Colors.orange, Colors.purple];
+    final result = await showDialog<List<Color>>(context: context, builder: (ctx) {
+      var bg = _activeTextTheme.background; var fg = _activeTextTheme.foreground;
+      return StatefulBuilder(builder: (ctx, refresh) => AlertDialog(
+        title: const Text('رنگ‌های این نوشته'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
+          const Text('پس‌زمینه'), Wrap(children: palette.map((c) => IconButton(onPressed: () => refresh(() => bg = c), icon: Icon(Icons.circle, color: c, size: 28), selected: bg == c)).toList()),
+          const Text('رنگ متن'), Wrap(children: palette.map((c) => IconButton(onPressed: () => refresh(() => fg = c), icon: Icon(Icons.circle, color: c, size: 28), selected: fg == c)).toList()),
+        ]),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')), FilledButton(onPressed: () => Navigator.pop(ctx, [bg, fg]), child: const Text('اعمال'))],
+      ));
+    });
+    if (result == null) return;
+    final current = _activeTextTheme;
+    final id = 'edited_${_editingId ?? _id()}';
+    await NotesAppearanceSettings.saveCustomTheme(NoteTextTheme(id: id, name: 'قالب این نوشته', backgroundColor: result[0].value, textColor: result[1].value, fontFamily: current.fontFamily, fontSize: current.fontSize));
+    if (mounted) setState(() => _themeId = id);
+  }
+
+  Widget _buildEditor() => Scaffold(
         appBar: AppBar(
           title: const Text('یادداشت'),
           leading: IconButton(
