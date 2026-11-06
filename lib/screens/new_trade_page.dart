@@ -1005,13 +1005,12 @@ class _NotesPageState extends State<TradeNotesPage> {
                         width: canvasWidth,
                         height: canvasHeight,
                         child: ClipRect(
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              InteractiveViewer(
-                                minScale: 1, maxScale: 5, panEnabled: false, scaleEnabled: true,
-                                child: Image.file(File(path), fit: BoxFit.fill, filterQuality: FilterQuality.high),
-                              ),
+                          child: InteractiveViewer(
+                            minScale: 1, maxScale: 5, panEnabled: false, scaleEnabled: true,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Image.file(File(path), fit: BoxFit.fill, filterQuality: FilterQuality.high),
                               GestureDetector(
                                 behavior: HitTestBehavior.opaque,
                                 onPanStart: (details) => refresh(() {
@@ -1040,7 +1039,8 @@ class _NotesPageState extends State<TradeNotesPage> {
                                   size: Size(canvasWidth, canvasHeight),
                                 ),
                               ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
