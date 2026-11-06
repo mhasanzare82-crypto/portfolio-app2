@@ -53,13 +53,15 @@ class NoteItem {
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? folderId;
+  final String? themeId;
   const NoteItem(
       {required this.id,
       required this.title,
       required this.blocks,
       required this.createdAt,
       required this.updatedAt,
-      this.folderId});
+      this.folderId,
+      this.themeId});
   String get searchableText =>
       blocks.where((b) => b.type == 'text').map((b) => b.value).join(' ');
   Map<String, dynamic> toJson() => {
@@ -69,6 +71,7 @@ class NoteItem {
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'folderId': folderId,
+        'themeId': themeId,
       };
   factory NoteItem.fromJson(Map<String, dynamic> j) {
     List<NoteBlock> blocks;
@@ -96,6 +99,7 @@ class NoteItem {
       updatedAt: DateTime.tryParse((j['updatedAt'] ?? '').toString()) ??
           DateTime.now(),
       folderId: j['folderId']?.toString(),
+      themeId: j['themeId']?.toString(),
     );
   }
 }
@@ -141,6 +145,9 @@ class _NotesPageState extends State<TradeNotesPage> {
   DateTime? _created;
   int _activeText = 0;
   String? _playing;
+  String? _themeId;
+
+  NoteTextTheme get _activeTextTheme => NotesAppearanceSettings.themeById(_themeId);
 
   @override
   void initState() {
@@ -753,7 +760,8 @@ class _NotesPageState extends State<TradeNotesPage> {
             blocks: n.blocks,
             createdAt: n.createdAt,
             updatedAt: n.updatedAt,
-            folderId: folder.parentId);
+            folderId: folder.parentId,
+            themeId: n.themeId);
       }
     }
     for (var i = 0; i < _folders.length; i++) {
@@ -813,7 +821,8 @@ class _NotesPageState extends State<TradeNotesPage> {
           blocks: note.blocks,
           createdAt: note.createdAt,
           updatedAt: DateTime.now(),
-          folderId: target);
+          folderId: target,
+          themeId: note.themeId);
       await _persist();
       if (mounted) setState(() {});
     }
@@ -839,6 +848,7 @@ class _NotesPageState extends State<TradeNotesPage> {
     _draftBlockKeys.add(GlobalKey());
     _title.clear();
     _editingId = _id();
+    _themeId = NotesAppearanceSettings.randomThemeId();
     _created = DateTime.now();
     _editingFolderId = _currentFolderId;
     setState(() => _editing = true);
@@ -853,6 +863,7 @@ class _NotesPageState extends State<TradeNotesPage> {
     _draftBlockKeys.clear();
     _title.text = note.title;
     _editingId = note.id;
+    _themeId = note.themeId ?? NotesAppearanceSettings.randomThemeId();
     _created = note.createdAt;
     _editingFolderId = note.folderId;
     var targetBlock = matchBlockIndex == -1 ? -2 : -1;
@@ -1285,7 +1296,8 @@ class _NotesPageState extends State<TradeNotesPage> {
           blocks: blocks,
           createdAt: _created ?? now,
           updatedAt: now,
-          folderId: _editingFolderId);
+          folderId: _editingFolderId,
+          themeId: _themeId);
       final i = _notes.indexWhere((n) => n.id == note.id);
       if (i < 0) {
         _notes.add(note);
@@ -1491,7 +1503,10 @@ class _NotesPageState extends State<TradeNotesPage> {
       for (var i = 0; i < index; i++) {
         if (_draft[i].type == 'text') textIndex++;
       }
-      child = TextField(
+      child = Container(
+        decoration: BoxDecoration(color: _activeTextTheme.background, borderRadius: BorderRadius.circular(8)),
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+        child: TextField(
         controller: _textControllers[textIndex],
         focusNode: _focusNodes[textIndex],
         onTap: () => _activeText = textIndex,
@@ -1508,6 +1523,7 @@ class _NotesPageState extends State<TradeNotesPage> {
             hintText: 'متن یادداشت را بنویسید...',
             border: InputBorder.none,
             contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 5)),
+      ),
       );
     } else if (block.type == 'image') {
       child = Padding(
@@ -1563,7 +1579,7 @@ class _NotesPageState extends State<TradeNotesPage> {
     return KeyedSubtree(key: _draftBlockKeys[index], child: child);
   }
 
-  Widget _buildEditor() => Scaffold(
+  Future<void> _chooseNoteTheme() async {\n    final selected = await showModalBottomSheet<String>(\n      context: context, isScrollControlled: true,\n      builder: (ctx) => SafeArea(child: ListView(padding: const EdgeInsets.all(12), shrinkWrap: true, children: [\n        const Padding(padding: EdgeInsets.all(12), child: Text('انتخاب قالب نوشته', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold))),\n        ...NotesAppearanceSettings.allThemes.map((theme) => Card(color: theme.background, child: ListTile(\n          title: Text(theme.name, textAlign: TextAlign.right, style: TextStyle(color: theme.foreground, fontFamily: theme.fontFamily, fontSize: theme.fontSize, fontWeight: FontWeight.bold)),\n          subtitle: Text('پیش‌نمایش متن نمونه با این قالب', textAlign: TextAlign.right, style: TextStyle(color: theme.foreground, fontFamily: theme.fontFamily, fontSize: theme.fontSize)),\n          trailing: Icon(Icons.check_circle_outline, color: theme.foreground),\n          onTap: () => Navigator.pop(ctx, theme.id),\n        ))),\n      ])),\n    );\n    if (selected != null && mounted) setState(() => _themeId = selected);\n  }\n\n  Future<void> _changeNoteColors() async {\n    final palette = [Colors.white, const Color(0xFFFFF3D6), const Color(0xFFE8F5E9), const Color(0xFFEAF2FF), const Color(0xFFFFEEF2), const Color(0xFF17212B), const Color(0xFF202124), Colors.black, Colors.blue, Colors.green, Colors.orange, Colors.purple];\n    final result = await showDialog<List<Color>>(context: context, builder: (ctx) {\n      var bg = _activeTextTheme.background; var fg = _activeTextTheme.foreground;\n      return StatefulBuilder(builder: (ctx, refresh) => AlertDialog(\n        title: const Text('رنگ‌های این نوشته'),\n        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [\n          const Text('پس‌زمینه'), Wrap(children: palette.map((c) => IconButton(onPressed: () => refresh(() => bg = c), icon: Icon(Icons.circle, color: c, size: 28), selected: bg == c)).toList()),\n          const Text('رنگ متن'), Wrap(children: palette.map((c) => IconButton(onPressed: () => refresh(() => fg = c), icon: Icon(Icons.circle, color: c, size: 28), selected: fg == c)).toList()),\n        ]),\n        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')), FilledButton(onPressed: () => Navigator.pop(ctx, [bg, fg]), child: const Text('اعمال'))],\n      ));\n    });\n    if (result == null) return;\n    final current = _activeTextTheme;\n    final id = 'edited_${_editingId ?? _id()}';\n    await NotesAppearanceSettings.saveCustomTheme(NoteTextTheme(id: id, name: 'قالب این نوشته', backgroundColor: result[0].value, textColor: result[1].value, fontFamily: current.fontFamily, fontSize: current.fontSize));\n    if (mounted) setState(() => _themeId = id);\n  }\n\n  Widget _buildEditor() => Scaffold(
         appBar: AppBar(
           title: const Text('یادداشت'),
           leading: IconButton(
@@ -1574,6 +1590,16 @@ class _NotesPageState extends State<TradeNotesPage> {
             },
           ),
           actions: [
+            IconButton(
+              tooltip: 'انتخاب قالب نوشته',
+              icon: const Icon(Icons.palette_outlined),
+              onPressed: _chooseNoteTheme,
+            ),
+            IconButton(
+              tooltip: 'تغییر رنگ نوشته',
+              icon: const Icon(Icons.color_lens_outlined),
+              onPressed: _changeNoteColors,
+            ),
             IconButton(
               onPressed: _editFontSizes,
               icon: const Icon(Icons.format_size),
