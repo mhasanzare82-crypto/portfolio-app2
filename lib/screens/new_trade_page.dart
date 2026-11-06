@@ -1636,8 +1636,8 @@ class _NotesPageState extends State<TradeNotesPage> {
       return StatefulBuilder(builder: (ctx, refresh) => AlertDialog(
         title: const Text('رنگ‌های این نوشته'),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
-          const Text('پس‌زمینه'), Wrap(children: palette.map((c) => IconButton(onPressed: () => refresh(() => bg = c), icon: Icon(Icons.circle, color: c, size: 28), selected: bg == c)).toList()),
-          const Text('رنگ متن'), Wrap(children: palette.map((c) => IconButton(onPressed: () => refresh(() => fg = c), icon: Icon(Icons.circle, color: c, size: 28), selected: fg == c)).toList()),
+          const Text('پس‌زمینه'), Wrap(children: palette.map((c) => IconButton(onPressed: () => refresh(() => bg = c), icon: Icon(bg == c ? Icons.check_circle : Icons.circle, color: c, size: 28))).toList()),
+          const Text('رنگ متن'), Wrap(children: palette.map((c) => IconButton(onPressed: () => refresh(() => fg = c), icon: Icon(fg == c ? Icons.check_circle : Icons.circle, color: c, size: 28))).toList()),
         ]),
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')), FilledButton(onPressed: () => Navigator.pop(ctx, [bg, fg]), child: const Text('اعمال'))],
       ));
