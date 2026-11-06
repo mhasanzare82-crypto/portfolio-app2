@@ -26,6 +26,7 @@ import '../repositories/pre_trade_repository.dart';
 import '../repositories/price_alert_repository.dart';
 import '../repositories/trade_repository.dart';
 import '../services/lbank_service.dart';
+import '../services/lbank_futures_symbols_service.dart';
 import 'color_settings_page.dart';
 import '../repositories/trade_note_repository.dart';
 import '../repositories/note_subject_repository.dart';
@@ -306,68 +307,23 @@ class _NewTradePageState extends State<NewTradePage> {
   }
 
   Future<void> _loadFuturesAssetSymbols() async {
-    _loadingFuturesAssets = true;
-    final client = HttpClient();
+    if (_futuresAssetSymbols.isEmpty) {
+      setState(() => _loadingFuturesAssets = true);
+    }
     try {
-      final uri = Uri.https(
-        'lbkperp.lbank.com',
-        '/cfd/openApi/v1/pub/instrument',
-        {'productGroup': 'SwapU'},
-      );
-      final request = await client.getUrl(uri);
-      request.headers.set(HttpHeaders.acceptHeader, 'application/json');
-      final response = await request.close();
-      if (response.statusCode != HttpStatus.ok) {
-        throw HttpException(
-          'دریافت نمادهای فیوچرز ناموفق بود: HTTP ${response.statusCode}',
-          uri: uri,
-        );
-      }
-
-      final responseText = await response.transform(utf8.decoder).join();
-      final decoded = jsonDecode(responseText);
-      final dynamic rows = decoded is List
-          ? decoded
-          : decoded is Map
-              ? (decoded['data'] ?? decoded['result'] ?? const [])
-              : const [];
-
-      final symbols = <String>{};
-      if (rows is List) {
-        for (final row in rows) {
-          if (row is Map) {
-            final symbol = (row['symbol'] ?? row['symbolName'])
-                ?.toString()
-                .trim()
-                .toUpperCase();
-            if (symbol != null && symbol.isNotEmpty) {
-              symbols.add(symbol.replaceAll(RegExp(r'[^A-Z0-9_]'), ''));
-            }
-          } else if (row is String && row.trim().isNotEmpty) {
-            symbols.add(row.trim().toUpperCase());
-          }
-        }
-      }
-
-      if (symbols.isEmpty) {
-        throw const FormatException('فهرست نمادهای فیوچرز خالی است.');
-      }
-
+      final symbols = await LBankFuturesSymbolsService.instance.load();
       if (!mounted) return;
       setState(() {
-        _futuresAssetSymbols = symbols.toList()..sort();
+        _futuresAssetSymbols = symbols;
         _loadingFuturesAssets = false;
       });
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _loadingFuturesAssets = false;
-        // در صورت قطعی API، فهرست دارایی‌های قبلی همچنان قابل جست‌وجو است.
         _futuresAssetSymbols = [];
       });
       debugPrint('LBank futures symbols load error: $error');
-    } finally {
-      client.close(force: true);
     }
   }
 
