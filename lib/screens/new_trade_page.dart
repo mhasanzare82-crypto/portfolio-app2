@@ -109,6 +109,8 @@ class TradeNotesPage extends StatefulWidget {
 class _NotesPageState extends State<TradeNotesPage> {
   static const _key = 'notes_v1';
   static const _foldersKey = 'notes_folders_v1';
+  static const _pinnedNotesKey = 'notes_pinned_notes_v1';
+  static const _pinnedFoldersKey = 'notes_pinned_folders_v1';
   final _search = TextEditingController();
   final _title = TextEditingController();
   final _picker = ImagePicker();
@@ -121,6 +123,9 @@ class _NotesPageState extends State<TradeNotesPage> {
   final List<FocusNode> _focusNodes = [];
   List<NoteItem> _notes = [];
   List<NoteFolder> _folders = [];
+  final Set<String> _pinnedNoteIds = {};
+  final Set<String> _pinnedFolderIds = {};
+  List<String> _customFontFamilies = [];
   String? _currentFolderId;
   String? _editingFolderId;
   bool _loading = true, _editing = false, _recording = false, _saving = false;
@@ -184,6 +189,12 @@ class _NotesPageState extends State<TradeNotesPage> {
                 (e) => NoteFolder.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
       }
+      _pinnedNoteIds
+        ..clear()
+        ..addAll(prefs.getStringList(_pinnedNotesKey) ?? const []);
+      _pinnedFolderIds
+        ..clear()
+        ..addAll(prefs.getStringList(_pinnedFoldersKey) ?? const []);
     } catch (e) {
       _message('خواندن یادداشت‌ها ناموفق بود: $e');
     }
@@ -198,6 +209,28 @@ class _NotesPageState extends State<TradeNotesPage> {
     final foldersOk = await prefs.setString(
         _foldersKey, jsonEncode(_folders.map((f) => f.toJson()).toList()));
     if (!foldersOk) throw Exception('ذخیره پوشه‌ها انجام نشد');
+    await prefs.setStringList(_pinnedNotesKey, _pinnedNoteIds.toList());
+    await prefs.setStringList(_pinnedFoldersKey, _pinnedFolderIds.toList());
+  }
+
+  Future<void> _toggleNotePin(NoteItem note) async {
+    if (_pinnedNoteIds.contains(note.id)) {
+      _pinnedNoteIds.remove(note.id);
+    } else {
+      _pinnedNoteIds.add(note.id);
+    }
+    await _persist();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _toggleFolderPin(NoteFolder folder) async {
+    if (_pinnedFolderIds.contains(folder.id)) {
+      _pinnedFolderIds.remove(folder.id);
+    } else {
+      _pinnedFolderIds.add(folder.id);
+    }
+    await _persist();
+    if (mounted) setState(() {});
   }
 
   NoteFolder? _folderById(String? id) {
@@ -227,15 +260,25 @@ class _NotesPageState extends State<TradeNotesPage> {
 
   Future<void> _loadCustomFonts() async {
     try {
-      final prefs=await SharedPreferences.getInstance();
-      for(final item in prefs.getStringList('notes_custom_fonts_v1')??<String>[]) {
-        final parts=item.split('|'); if(parts.length!=2)continue;
-        final file=File(parts[1]); if(!await file.exists())continue;
-        final bytes=await file.readAsBytes();
-        final loader=FontLoader(parts[0])..addFont(Future.value(ByteData.sublistView(bytes)));
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getStringList('notes_custom_fonts_v1') ?? <String>[];
+      for (final item in saved) {
+        final parts = item.split('|');
+        if (parts.length != 2) continue;
+        final file = File(parts[1]);
+        if (!await file.exists()) continue;
+        final bytes = await file.readAsBytes();
+        final loader = FontLoader(parts[0])
+          ..addFont(Future.value(ByteData.sublistView(bytes)));
         await loader.load();
+        if (!_customFontFamilies.contains(parts[0])) {
+          _customFontFamilies.add(parts[0]);
+        }
       }
-    } catch(e) { debugPrint('Custom font loading failed: $e'); }
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Custom font loading failed: $e');
+    }
   }
 
   Future<void> _exportAllNotesDocx() async {
@@ -334,26 +377,143 @@ class _NotesPageState extends State<TradeNotesPage> {
 
   Future<void> _addCustomFont() async {
     try {
-      final picked=await FilePicker.platform.pickFiles(type:FileType.custom,allowedExtensions:['ttf','otf'],withData:true);
-      if(picked==null||picked.files.single.bytes==null)return;
-      final bytes=Uint8List.fromList(picked.files.single.bytes!); final family='CustomFont_${DateTime.now().millisecondsSinceEpoch}';
-      final dir=Directory(p.join((await getApplicationDocumentsDirectory()).path,'custom_fonts')); if(!await dir.exists())await dir.create(recursive:true);
-      final fontFile=File(p.join(dir.path,'$family${p.extension(picked.files.single.name)}')); await fontFile.writeAsBytes(bytes,flush:true);
-      final loader=FontLoader(family)..addFont(Future.value(ByteData.sublistView(bytes))); await loader.load();
-      final prefs=await SharedPreferences.getInstance(); final saved=prefs.getStringList('notes_custom_fonts_v1')??<String>[]; saved.add('$family|${fontFile.path}'); await prefs.setStringList('notes_custom_fonts_v1',saved);
-      await NotesAppearanceSettings.setFonts(NotesAppearanceSettings.fonts.value.copyWith(appFontFamily:family,inputFontFamily:family));
-      if(mounted)setState((){}); _message('فونت شخصی فعال شد.');
-    } catch(e) { _message('افزودن فونت ناموفق بود: $e'); }
+      final picked = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['ttf', 'otf'],
+        withData: true,
+      );
+      if (picked == null || picked.files.single.bytes == null) return;
+      final bytes = Uint8List.fromList(picked.files.single.bytes!);
+      final family = 'CustomFont_${DateTime.now().millisecondsSinceEpoch}';
+      final dir = Directory(p.join(
+          (await getApplicationDocumentsDirectory()).path, 'custom_fonts'));
+      if (!await dir.exists()) await dir.create(recursive: true);
+      final fontFile = File(p.join(
+          dir.path, '$family${p.extension(picked.files.single.name)}'));
+      await fontFile.writeAsBytes(bytes, flush: true);
+      final loader = FontLoader(family)
+        ..addFont(Future.value(ByteData.sublistView(bytes)));
+      await loader.load();
+      final prefs = await SharedPreferences.getInstance();
+      final saved =
+          prefs.getStringList('notes_custom_fonts_v1') ?? <String>[];
+      saved.add('$family|${fontFile.path}');
+      await prefs.setStringList('notes_custom_fonts_v1', saved);
+      _customFontFamilies.add(family);
+      if (mounted) {
+        setState(() {});
+        _message('فونت اضافه شد؛ حالا می‌توانی آن را جداگانه برای متن برنامه یا ورودی انتخاب کنی.');
+        await _editFontSizes();
+      }
+    } catch (e) {
+      _message('افزودن فونت ناموفق بود: $e');
+    }
   }
 
   Future<void> _editFontSizes() async {
-    var app=NotesAppearanceSettings.fonts.value.appTextSize.round().clamp(8,32); var input=NotesAppearanceSettings.fonts.value.inputTextSize.round().clamp(8,32); var step=1;
-    final result=await showDialog<List<int>>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(title:Text('اندازه نوشته‌ها'),content:Column(mainAxisSize:MainAxisSize.min,children:[
-      SegmentedButton<int>(segments:[ButtonSegment(value:1,label:Text('۱ پیکسل')),ButtonSegment(value:2,label:Text('۲ پیکسل'))],selected:{step},onSelectionChanged:(v)=>refresh(()=>step=v.first)),
-      Text('متن برنامه: $app px'),Slider(value:app.toDouble(),min:8,max:32,divisions:24~/step,onChanged:(v)=>refresh(()=>app=(8+((v.round()-8)/step).round()*step).clamp(8,32))),
-      Text('متن ورودی: $input px'),Slider(value:input.toDouble(),min:8,max:32,divisions:24~/step,onChanged:(v)=>refresh(()=>input=(8+((v.round()-8)/step).round()*step).clamp(8,32)))
-    ]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:Text('انصراف')),FilledButton(onPressed:()=>Navigator.pop(ctx,[app,input]),child:Text('ذخیره'))])));
-    if(result==null)return; await NotesAppearanceSettings.setFonts(NotesAppearanceSettings.fonts.value.copyWith(appTextSize:result[0].toDouble(),inputTextSize:result[1].toDouble()));
+    final current = NotesAppearanceSettings.fonts.value;
+    var app = current.appTextSize.round().clamp(8, 32);
+    var input = current.inputTextSize.round().clamp(8, 32);
+    var appFamily = current.appFontFamily;
+    var inputFamily = current.inputFontFamily;
+    var step = 1;
+    final choices = <String>['Roboto', ..._customFontFamilies];
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, refresh) => AlertDialog(
+          title: const Text('تنظیم فونت و اندازه نوشته‌ها'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text('فونت متن اصلی برنامه'),
+                ),
+                DropdownButtonFormField<String>(
+                  value: choices.contains(appFamily) ? appFamily : 'Roboto',
+                  isExpanded: true,
+                  items: choices
+                      .map((family) => DropdownMenuItem(
+                          value: family, child: Text(family)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) refresh(() => appFamily = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text('فونت نوشته‌های ورودی'),
+                ),
+                DropdownButtonFormField<String>(
+                  value:
+                      choices.contains(inputFamily) ? inputFamily : 'Roboto',
+                  isExpanded: true,
+                  items: choices
+                      .map((family) => DropdownMenuItem(
+                          value: family, child: Text(family)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) refresh(() => inputFamily = value);
+                  },
+                ),
+                const SizedBox(height: 16),
+                SegmentedButton<int>(
+                  segments: const [
+                    ButtonSegment(value: 1, label: Text('۱ پیکسل')),
+                    ButtonSegment(value: 2, label: Text('۲ پیکسل')),
+                  ],
+                  selected: {step},
+                  onSelectionChanged: (value) =>
+                      refresh(() => step = value.first),
+                ),
+                Text('اندازه متن برنامه: $app px'),
+                Slider(
+                  value: app.toDouble(),
+                  min: 8,
+                  max: 32,
+                  divisions: 24 ~/ step,
+                  onChanged: (value) => refresh(() => app =
+                      (8 + ((value.round() - 8) / step).round() * step)
+                          .clamp(8, 32)),
+                ),
+                Text('اندازه متن ورودی: $input px'),
+                Slider(
+                  value: input.toDouble(),
+                  min: 8,
+                  max: 32,
+                  divisions: 24 ~/ step,
+                  onChanged: (value) => refresh(() => input =
+                      (8 + ((value.round() - 8) / step).round() * step)
+                          .clamp(8, 32)),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('انصراف'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('ذخیره'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result != true) return;
+    await NotesAppearanceSettings.setFonts(
+      NotesAppearanceSettings.fonts.value.copyWith(
+        appFontFamily: appFamily,
+        inputFontFamily: inputFamily,
+        appTextSize: app.toDouble(),
+        inputTextSize: input.toDouble(),
+      ),
+    );
   }
 
   Future<void> _createFolder() async {
@@ -1086,16 +1246,32 @@ class _NotesPageState extends State<TradeNotesPage> {
 
   List<NoteItem> get _filtered {
     final q = _search.text.trim().toLowerCase();
-    return _notes.where((n) {
+    final result = _notes.where((n) {
       final matches = q.isEmpty ||
           n.title.toLowerCase().contains(q) ||
           n.searchableText.toLowerCase().contains(q);
       return matches && (q.isNotEmpty || n.folderId == _currentFolderId);
     }).toList();
+    result.sort((a, b) {
+      final pinOrder = (_pinnedNoteIds.contains(b.id) ? 1 : 0)
+          .compareTo(_pinnedNoteIds.contains(a.id) ? 1 : 0);
+      return pinOrder != 0 ? pinOrder : b.updatedAt.compareTo(a.updatedAt);
+    });
+    return result;
   }
 
-  List<NoteFolder> get _visibleFolders =>
-      _search.text.trim().isNotEmpty ? const [] : _childrenOf(_currentFolderId);
+  List<NoteFolder> get _visibleFolders {
+    if (_search.text.trim().isNotEmpty) return const [];
+    final result = _childrenOf(_currentFolderId);
+    result.sort((a, b) {
+      final pinOrder = (_pinnedFolderIds.contains(b.id) ? 1 : 0)
+          .compareTo(_pinnedFolderIds.contains(a.id) ? 1 : 0);
+      return pinOrder != 0
+          ? pinOrder
+          : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return result;
+  }
   void _openFolder(NoteFolder folder) {
     setState(() => _currentFolderId = folder.id);
   }
@@ -1192,6 +1368,11 @@ class _NotesPageState extends State<TradeNotesPage> {
           ),
           actions: [
             IconButton(
+              onPressed: _editFontSizes,
+              icon: const Icon(Icons.format_size),
+              tooltip: 'تنظیم فونت و اندازه',
+            ),
+            IconButton(
               onPressed: _saving ? null : _save,
               icon: const Icon(Icons.save_outlined),
               tooltip: 'ذخیره',
@@ -1231,19 +1412,11 @@ class _NotesPageState extends State<TradeNotesPage> {
                     decoration: BoxDecoration(
                       color:
                           NotesAppearanceSettings.color('inputBackground'),
-                      border: Border.all(
-                        color: NotesAppearanceSettings.color('inputBorder'),
-                      ),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        IconButton(
-                          tooltip: 'فونت و اندازه نوشته',
-                          onPressed: _editFontSizes,
-                          icon: const Icon(Icons.format_size),
-                        ),
                         for (var i = 0; i < _draft.length; i++)
                           _editorBlock(i),
                       ],
@@ -1378,13 +1551,56 @@ class _NotesPageState extends State<TradeNotesPage> {
                 },
               ),
         actions: [
-          IconButton(tooltip:'خروجی ZIP همه یادداشت‌ها',onPressed:_exportAllNotesZip,icon:const Icon(Icons.folder_zip_outlined)),
-          IconButton(tooltip:'خروجی DOCX همه یادداشت‌ها',onPressed:_exportAllNotesDocx,icon:const Icon(Icons.description_outlined)),
-          PopupMenuButton<String>(tooltip:'وارد کردن فایل',icon:const Icon(Icons.file_upload_outlined),onSelected:(v){if(v=='zip')_importNotesZip();if(v=='docx')_importDocx();},itemBuilder:(_)=>const [PopupMenuItem(value:'zip',child:Text('وارد کردن ZIP')),PopupMenuItem(value:'docx',child:Text('وارد کردن Word'))]),
-          IconButton(tooltip:'افزودن فونت شخصی',onPressed:_addCustomFont,icon:const Icon(Icons.font_download_outlined)),
-          IconButton(tooltip:'اندازه نوشته‌ها',onPressed:_editFontSizes,icon:const Icon(Icons.format_size)),
-          IconButton(tooltip:'ساخت پوشه',onPressed:searching?null:_createFolder,icon:const Icon(Icons.create_new_folder_outlined)),
-          IconButton(tooltip:'تنظیمات رنگ و فونت',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const NotesAppearanceSettingsPage())),icon:const Icon(Icons.tune)),
+          PopupMenuButton<String>(
+            tooltip: 'تنظیمات فونت',
+            icon: const Icon(Icons.text_fields),
+            onSelected: (value) {
+              if (value == 'settings') _editFontSizes();
+              if (value == 'add') _addCustomFont();
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'settings',
+                child: Text('انتخاب فونت و اندازه نوشته‌ها'),
+              ),
+              PopupMenuItem(
+                value: 'add',
+                child: Text('افزودن فونت TTF/OTF'),
+              ),
+            ],
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'ورود و خروجی فایل‌ها',
+            icon: const Icon(Icons.import_export),
+            onSelected: (value) {
+              if (value == 'export_zip') _exportAllNotesZip();
+              if (value == 'import_zip') _importNotesZip();
+              if (value == 'export_docx') _exportAllNotesDocx();
+              if (value == 'import_docx') _importDocx();
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'export_zip', child: Text('خروجی ZIP همه یادداشت‌ها')),
+              PopupMenuItem(value: 'import_zip', child: Text('وارد کردن ZIP')),
+              PopupMenuDivider(),
+              PopupMenuItem(value: 'export_docx', child: Text('خروجی DOCX همه یادداشت‌ها')),
+              PopupMenuItem(value: 'import_docx', child: Text('وارد کردن DOCX')),
+            ],
+          ),
+          IconButton(
+            tooltip: 'ساخت پوشه',
+            onPressed: searching ? null : _createFolder,
+            icon: const Icon(Icons.create_new_folder_outlined),
+          ),
+          IconButton(
+            tooltip: 'تنظیمات رنگ و فونت',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const NotesAppearanceSettingsPage(),
+              ),
+            ),
+            icon: const Icon(Icons.tune),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -1446,8 +1662,14 @@ class _NotesPageState extends State<TradeNotesPage> {
                                     margin:
                                         const EdgeInsets.symmetric(vertical: 5),
                                     child: ListTile(
-                                        leading:
-                                            const Icon(Icons.folder_outlined),
+                                        leading: Icon(
+                                          _pinnedFolderIds.contains(folder.id)
+                                              ? Icons.push_pin
+                                              : Icons.folder_outlined,
+                                          color: _pinnedFolderIds.contains(folder.id)
+                                              ? NotesAppearanceSettings.color('icon')
+                                              : null,
+                                        ),
                                         title: Text(folder.name,
                                             textDirection: TextDirection.rtl),
                                         subtitle: Text(
@@ -1455,16 +1677,27 @@ class _NotesPageState extends State<TradeNotesPage> {
                                         onTap: () => _openFolder(folder),
                                         trailing: PopupMenuButton<String>(
                                             onSelected: (v) {
+                                              if (v == 'pin') {
+                                                _toggleFolderPin(folder);
+                                              }
                                               if (v == 'rename')
                                                 _renameFolder(folder);
                                               if (v == 'delete')
                                                 _deleteFolder(folder);
                                             },
-                                            itemBuilder: (_) => const [
+                                            itemBuilder: (_) => [
                                                   PopupMenuItem(
+                                                    value: 'pin',
+                                                    child: Text(
+                                                      _pinnedFolderIds.contains(folder.id)
+                                                          ? 'برداشتن سنجاق'
+                                                          : 'پین کردن پوشه',
+                                                    ),
+                                                  ),
+                                                  const PopupMenuItem(
                                                       value: 'rename',
                                                       child: Text('تغییر نام')),
-                                                  PopupMenuItem(
+                                                  const PopupMenuItem(
                                                       value: 'delete',
                                                       child: Text('حذف پوشه'))
                                                 ])),
@@ -1486,6 +1719,10 @@ class _NotesPageState extends State<TradeNotesPage> {
                                         child: ListTile(
                                           onTap: () => _edit(n,
                                               searchTerm: _search.text.trim()),
+                                          leading: _pinnedNoteIds.contains(n.id)
+                                              ? Icon(Icons.push_pin,
+                                                  color: NotesAppearanceSettings.color('icon'))
+                                              : null,
                                           title: Text(n.title,
                                               textDirection: TextDirection.rtl,
                                               style: TextStyle(
@@ -1541,23 +1778,29 @@ class _NotesPageState extends State<TradeNotesPage> {
                                               ]),
                                           trailing: PopupMenuButton<String>(
                                               onSelected: (v) {
+                                                if (v == 'pin') _toggleNotePin(n);
                                                 if (v == 'docx') _exportDocx(n);
                                                 if (v == 'delete') _delete(n);
                                                 if (v == 'move') _moveNote(n);
                                               },
-                                              itemBuilder: (_) => const [
+                                              itemBuilder: (_) => [
                                                     PopupMenuItem(
+                                                      value: 'pin',
+                                                      child: Text(
+                                                        _pinnedNoteIds.contains(n.id)
+                                                            ? 'برداشتن سنجاق'
+                                                            : 'پین کردن یادداشت',
+                                                      ),
+                                                    ),
+                                                    const PopupMenuItem(
                                                         value: 'move',
-                                                        child: Text(
-                                                            'انتقال به پوشه')),
-                                                    PopupMenuItem(
+                                                        child: Text('انتقال به پوشه')),
+                                                    const PopupMenuItem(
                                                         value: 'docx',
-                                                        child:
-                                                            Text('خروجی DOCX')),
-                                                    PopupMenuItem(
+                                                        child: Text('خروجی DOCX')),
+                                                    const PopupMenuItem(
                                                         value: 'delete',
-                                                        child:
-                                                            Text('حذف یادداشت'))
+                                                        child: Text('حذف یادداشت'))
                                                   ]),
                                         ));
                                   }),
