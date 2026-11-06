@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
+import 'package:flutter/services.dart' as services;
 
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
@@ -1549,7 +1549,7 @@ class _NewTradePageState extends State<NewTradePage> {
     if (fontPath != null && await File(fontPath).exists()) {
       try {
         final bytes = await File(fontPath).readAsBytes();
-        await (ui.FontLoader(_customNoteFontFamily)
+        await (services.FontLoader(_customNoteFontFamily)
               ..addFont(Future<ByteData>.value(ByteData.sublistView(bytes))))
             .load();
         loadedPath = fontPath;
@@ -1624,7 +1624,7 @@ class _NewTradePageState extends State<NewTradePage> {
       final target = p.join(folder.path,
           'notes_font_${DateTime.now().millisecondsSinceEpoch}$ext');
       await File(target).writeAsBytes(bytes, flush: true);
-      await (ui.FontLoader(_customNoteFontFamily)
+      await (services.FontLoader(_customNoteFontFamily)
             ..addFont(Future<ByteData>.value(ByteData.sublistView(bytes))))
           .load();
       final prefs = await SharedPreferences.getInstance();
