@@ -8,6 +8,7 @@ import 'package:archive/archive.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -220,6 +221,100 @@ class _NotesPageState extends State<TradeNotesPage> {
       id = folder.parentId;
     }
     return parts.join(' / ');
+  }
+
+  Future<void> _exportAllNotesZip() async {
+    try {
+      final archive = Archive();
+      final all = <Map<String, dynamic>>[];
+      var i = 0;
+      for (final n in _notes) {
+        final data = n.toJson();
+        final blocks = <Map<String, dynamic>>[];
+        for (final b in n.blocks) {
+          var value = b.value;
+          if ((b.type == 'image' || b.type == 'audio') && await File(value).exists()) {
+            final name = 'media/${i++}${p.extension(value)}';
+            final bytes = await File(value).readAsBytes();
+            archive.addFile(ArchiveFile(name, bytes.length, bytes));
+            value = name;
+          }
+          blocks.add({'type': b.type, 'value': value});
+        }
+        data['blocks'] = blocks; all.add(data);
+      }
+      final bytesJson = utf8.encode(jsonEncode({'format':'portfolio_notes_backup','notes':all,'folders':_folders.map((x)=>x.toJson()).toList()}));
+      archive.addFile(ArchiveFile('backup.json', bytesJson.length, bytesJson));
+      final bytes = ZipEncoder().encode(archive); if (bytes == null) throw StateError('ZIP error');
+      final temp = await getTemporaryDirectory();
+      final file = File(p.join(temp.path, 'notes_backup.zip')); await file.writeAsBytes(bytes, flush:true);
+      await Share.shareXFiles([XFile(file.path)], text:'پشتیبان یادداشت‌ها');
+    } catch(e) { _message('خروجی ZIP ناموفق بود: $e'); }
+  }
+
+  Future<void> _importNotesZip() async {
+    try {
+      final picked = await FilePicker.platform.pickFiles(type:FileType.custom, allowedExtensions:['zip'], withData:true);
+      if (picked == null || picked.files.single.bytes == null) return;
+      final archive = ZipDecoder().decodeBytes(picked.files.single.bytes!);
+      final entry = archive.files.where((x)=>x.name=='backup.json').firstOrNull;
+      if (entry == null) throw FormatException('فایل پشتیبان معتبر نیست');
+      final data = jsonDecode(utf8.decode(entry.content as List<int>));
+      if (data is! Map || data['format'] != 'portfolio_notes_backup') throw FormatException('ساختار فایل معتبر نیست');
+      final dir = await _dir(); final imported = <NoteItem>[];
+      for (final raw in data['notes'] as List? ?? []) {
+        final map = Map<String,dynamic>.from(raw as Map); final blocks = <Map<String,dynamic>>[];
+        for (final rawBlock in map['blocks'] as List? ?? []) {
+          final b = Map<String,dynamic>.from(rawBlock as Map); final value = (b['value']??'').toString();
+          if ((b['type']=='image'||b['type']=='audio') && value.startsWith('media/')) {
+            final media = archive.files.where((x)=>x.name==value).firstOrNull;
+            if (media != null) { final dest=p.join(dir.path,'import_${DateTime.now().microsecondsSinceEpoch}${p.extension(value)}'); await File(dest).writeAsBytes(media.content as List<int>,flush:true); b['value']=dest; }
+          }
+          blocks.add(b);
+        }
+        map['blocks']=blocks; imported.add(NoteItem.fromJson(map));
+      }
+      final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:Text('وارد کردن یادداشت‌ها'),content:Text('${imported.length} یادداشت اضافه شود؟'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:Text('انصراف')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:Text('افزودن'))]));
+      if(ok!=true)return; final ids=_notes.map((x)=>x.id).toSet();
+      for(final n in imported){_notes.add(ids.contains(n.id)?NoteItem(id:'${n.id}_imported_${DateTime.now().microsecondsSinceEpoch}',title:n.title,blocks:n.blocks,createdAt:n.createdAt,updatedAt:n.updatedAt,folderId:n.folderId):n);}
+      await _persist(); if(mounted)setState((){}); _message('یادداشت‌ها وارد شدند.');
+    } catch(e) { _message('ورود ZIP ناموفق بود: $e'); }
+  }
+
+  Future<void> _importDocx() async {
+    try {
+      final picked=await FilePicker.platform.pickFiles(type:FileType.custom,allowedExtensions:['docx'],withData:true);
+      if(picked==null||picked.files.single.bytes==null)return;
+      final archive=ZipDecoder().decodeBytes(picked.files.single.bytes!);
+      final entry=archive.files.where((x)=>x.name=='word/document.xml').firstOrNull;
+      if(entry==null)throw FormatException('فایل Word معتبر نیست');
+      final xml=utf8.decode(entry.content as List<int>);
+      final lines=RegExp(r'<w:p(?:\s[^>]*)?>(.*?)</w:p>',dotAll:true).allMatches(xml).map((m)=>RegExp(r'<w:t(?:\s[^>]*)?>(.*?)</w:t>',dotAll:true).allMatches(m.group(1)!).map((t)=>t.group(1)!).join()).where((x)=>x.isNotEmpty).toList();
+      final now=DateTime.now(); final title=lines.isEmpty?p.basenameWithoutExtension(picked.files.single.name):lines.first;
+      _notes.insert(0,NoteItem(id:'${now.microsecondsSinceEpoch}',title:title,blocks:[NoteBlock('text',lines.skip(1).join('\n'))],createdAt:now,updatedAt:now,folderId:_currentFolderId));
+      await _persist(); if(mounted)setState((){}); _message('فایل Word وارد شد.');
+    } catch(e) { _message('ورود DOCX ناموفق بود: $e'); }
+  }
+
+  Future<void> _addCustomFont() async {
+    try {
+      final picked=await FilePicker.platform.pickFiles(type:FileType.custom,allowedExtensions:['ttf','otf'],withData:true);
+      if(picked==null||picked.files.single.bytes==null)return;
+      final bytes=Uint8List.fromList(picked.files.single.bytes!); final family='CustomFont_${DateTime.now().millisecondsSinceEpoch}';
+      final loader=FontLoader(family)..addFont(Future.value(ByteData.sublistView(bytes))); await loader.load();
+      await NotesAppearanceSettings.setFonts(NotesAppearanceSettings.fonts.value.copyWith(appFontFamily:family,inputFontFamily:family));
+      if(mounted)setState((){}); _message('فونت شخصی فعال شد.');
+    } catch(e) { _message('افزودن فونت ناموفق بود: $e'); }
+  }
+
+  Future<void> _editFontSizes() async {
+    var app=NotesAppearanceSettings.fonts.value.appTextSize.round().clamp(8,32); var input=NotesAppearanceSettings.fonts.value.inputTextSize.round().clamp(8,32); var step=1;
+    final result=await showDialog<List<int>>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(title:Text('اندازه نوشته‌ها'),content:Column(mainAxisSize:MainAxisSize.min,children:[
+      SegmentedButton<int>(segments:[ButtonSegment(value:1,label:Text('۱ پیکسل')),ButtonSegment(value:2,label:Text('۲ پیکسل'))],selected:{step},onSelectionChanged:(v)=>refresh(()=>step=v.first)),
+      Text('متن برنامه: $app px'),Slider(value:app.toDouble(),min:8,max:32,divisions:24~/step,onChanged:(v)=>refresh(()=>app=(8+((v.round()-8)/step).round()*step).clamp(8,32))),
+      Text('متن ورودی: $input px'),Slider(value:input.toDouble(),min:8,max:32,divisions:24~/step,onChanged:(v)=>refresh(()=>input=(8+((v.round()-8)/step).round()*step).clamp(8,32)))
+    ]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:Text('انصراف')),FilledButton(onPressed:()=>Navigator.pop(ctx,[app,input]),child:Text('ذخیره'))])));
+    if(result==null)return; await NotesAppearanceSettings.setFonts(NotesAppearanceSettings.fonts.value.copyWith(appTextSize:result[0].toDouble(),inputTextSize:result[1].toDouble()));
   }
 
   Future<void> _createFolder() async {
@@ -1094,52 +1189,7 @@ class _NotesPageState extends State<TradeNotesPage> {
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          for (var i = 0; i < _draft.length; i++)
-                            _editorBlock(i)
-                        ]),
-                  ))),
-          if (_recording)
-            const Padding(
-                padding: EdgeInsets.all(6), child: Text('در حال ضبط صدا...')),
-          Material(
-              color: NotesAppearanceSettings.color('toolbarBackground'),
-              elevation: 4,
-              child: SafeArea(
-                  top: false,
-                  child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        IconButton(
-                            tooltip: 'افزودن تصویر در محل مکان‌نما',
-                            onPressed: _addImage,
-                            icon: const Icon(Icons.image_outlined)),
-                        IconButton(
-                            tooltip: 'ضبط ویس / پایان ضبط',
-                            onPressed: _toggleRecording,
-                            icon: Icon(
-                                _recording ? Icons.stop_circle : Icons.mic_none,
-                                color: _recording
-                                    ? NotesAppearanceSettings.color('recording')
-                                    : null)),
-                        IconButton(
-                            tooltip: 'افزودن پاراگراف',
-                            onPressed: () {
-                              final at = _draftIndexForText(_activeText);
-                              _draft.insert(
-                                  at + 1, const NoteBlock('text', ''));
-                              _draftBlockKeys.insert(at + 1, GlobalKey());
-                              _textControllers.insert(
-                                  _activeText + 1, TextEditingController());
-                              _focusNodes.insert(_activeText + 1, FocusNode());
-                              _activeText++;
-                              setState(() {});
-                              _focusNodes[_activeText].requestFocus();
-                            },
-                            icon: const Icon(Icons.text_fields)),
-                        IconButton(
-                            tooltip: 'ذخیره یادداشت',
-                            onPressed: _saving ? null : _save,
-                            icon: const Icon(Icons.check)),
+                        IconButton(tooltip:'فونت و اندازه نوشته',onPressed:_editFontSizes,icon:const Icon(Icons.format_size)),
                       ]))),
         ])),
       );
@@ -1266,17 +1316,12 @@ class _NotesPageState extends State<TradeNotesPage> {
                 },
               ),
         actions: [
-          IconButton(
-              tooltip: 'ساخت پوشه',
-              onPressed: searching ? null : _createFolder,
-              icon: const Icon(Icons.create_new_folder_outlined)),
-          IconButton(
-              tooltip: 'تنظیمات رنگ و فونت',
-              onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const NotesAppearanceSettingsPage())),
-              icon: const Icon(Icons.tune)),
+          IconButton(tooltip:'خروجی ZIP همه یادداشت‌ها',onPressed:_exportAllNotesZip,icon:const Icon(Icons.folder_zip_outlined)),
+          PopupMenuButton<String>(tooltip:'وارد کردن فایل',icon:const Icon(Icons.file_upload_outlined),onSelected:(v){if(v=='zip')_importNotesZip();if(v=='docx')_importDocx();},itemBuilder:(_)=>const [PopupMenuItem(value:'zip',child:Text('وارد کردن ZIP')),PopupMenuItem(value:'docx',child:Text('وارد کردن Word'))]),
+          IconButton(tooltip:'افزودن فونت شخصی',onPressed:_addCustomFont,icon:const Icon(Icons.font_download_outlined)),
+          IconButton(tooltip:'اندازه نوشته‌ها',onPressed:_editFontSizes,icon:const Icon(Icons.format_size)),
+          IconButton(tooltip:'ساخت پوشه',onPressed:searching?null:_createFolder,icon:const Icon(Icons.create_new_folder_outlined)),
+          IconButton(tooltip:'تنظیمات رنگ و فونت',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const NotesAppearanceSettingsPage())),icon:const Icon(Icons.tune)),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
