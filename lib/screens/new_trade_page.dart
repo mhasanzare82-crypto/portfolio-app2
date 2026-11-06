@@ -132,6 +132,7 @@ class _NotesPageState extends State<TradeNotesPage> {
   void initState() {
     super.initState();
     NotesAppearanceSettings.load();
+    _loadCustomFonts();
     _load();
   }
 
@@ -223,6 +224,40 @@ class _NotesPageState extends State<TradeNotesPage> {
     return parts.join(' / ');
   }
 
+  Future<void> _loadCustomFonts() async {
+    try {
+      final prefs=await SharedPreferences.getInstance();
+      for(final item in prefs.getStringList('notes_custom_fonts_v1')??<String>[]) {
+        final parts=item.split('|'); if(parts.length!=2)continue;
+        final file=File(parts[1]); if(!await file.exists())continue;
+        final bytes=await file.readAsBytes();
+        final loader=FontLoader(parts[0])..addFont(Future.value(ByteData.sublistView(bytes)));
+        await loader.load();
+      }
+    } catch(e) { debugPrint('Custom font loading failed: $e'); }
+  }
+
+  Future<void> _exportAllNotesDocx() async {
+    try {
+      final body=StringBuffer();
+      for(final note in _notes) {
+        body.write('<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>${_xml(note.title)}</w:t></w:r></w:p>');
+        for(final block in note.blocks.where((b)=>b.type=='text')) {
+          for(final line in block.value.split('\n')) body.write('<w:p><w:r><w:t xml:space="preserve">${_xml(line)}</w:t></w:r></w:p>');
+        }
+      }
+      final doc='<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body.toString()}<w:sectPr/></w:body></w:document>';
+      final archive=Archive();
+      final types=utf8.encode('<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+      final rels=utf8.encode('<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+      final document=utf8.encode(doc);
+      archive.addFile(ArchiveFile('[Content_Types].xml',types.length,types)); archive.addFile(ArchiveFile('_rels/.rels',rels.length,rels)); archive.addFile(ArchiveFile('word/document.xml',document.length,document));
+      final bytes=ZipEncoder().encode(archive); if(bytes==null)throw StateError('DOCX generation failed');
+      final temp=await getTemporaryDirectory(); final file=File(p.join(temp.path,'all_notes.docx')); await file.writeAsBytes(bytes,flush:true);
+      await Share.shareXFiles([XFile(file.path,mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document')],text:'خروجی Word همه یادداشت‌ها');
+    } catch(e) { _message('خروجی DOCX ناموفق بود: $e'); }
+  }
+
   Future<void> _exportAllNotesZip() async {
     try {
       final archive = Archive();
@@ -301,7 +336,10 @@ class _NotesPageState extends State<TradeNotesPage> {
       final picked=await FilePicker.platform.pickFiles(type:FileType.custom,allowedExtensions:['ttf','otf'],withData:true);
       if(picked==null||picked.files.single.bytes==null)return;
       final bytes=Uint8List.fromList(picked.files.single.bytes!); final family='CustomFont_${DateTime.now().millisecondsSinceEpoch}';
+      final dir=Directory(p.join((await getApplicationDocumentsDirectory()).path,'custom_fonts')); if(!await dir.exists())await dir.create(recursive:true);
+      final fontFile=File(p.join(dir.path,'$family${p.extension(picked.files.single.name)}')); await fontFile.writeAsBytes(bytes,flush:true);
       final loader=FontLoader(family)..addFont(Future.value(ByteData.sublistView(bytes))); await loader.load();
+      final prefs=await SharedPreferences.getInstance(); final saved=prefs.getStringList('notes_custom_fonts_v1')??<String>[]; saved.add('$family|${fontFile.path}'); await prefs.setStringList('notes_custom_fonts_v1',saved);
       await NotesAppearanceSettings.setFonts(NotesAppearanceSettings.fonts.value.copyWith(appFontFamily:family,inputFontFamily:family));
       if(mounted)setState((){}); _message('فونت شخصی فعال شد.');
     } catch(e) { _message('افزودن فونت ناموفق بود: $e'); }
@@ -1317,6 +1355,7 @@ class _NotesPageState extends State<TradeNotesPage> {
               ),
         actions: [
           IconButton(tooltip:'خروجی ZIP همه یادداشت‌ها',onPressed:_exportAllNotesZip,icon:const Icon(Icons.folder_zip_outlined)),
+          IconButton(tooltip:'خروجی DOCX همه یادداشت‌ها',onPressed:_exportAllNotesDocx,icon:const Icon(Icons.description_outlined)),
           PopupMenuButton<String>(tooltip:'وارد کردن فایل',icon:const Icon(Icons.file_upload_outlined),onSelected:(v){if(v=='zip')_importNotesZip();if(v=='docx')_importDocx();},itemBuilder:(_)=>const [PopupMenuItem(value:'zip',child:Text('وارد کردن ZIP')),PopupMenuItem(value:'docx',child:Text('وارد کردن Word'))]),
           IconButton(tooltip:'افزودن فونت شخصی',onPressed:_addCustomFont,icon:const Icon(Icons.font_download_outlined)),
           IconButton(tooltip:'اندازه نوشته‌ها',onPressed:_editFontSizes,icon:const Icon(Icons.format_size)),
