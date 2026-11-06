@@ -106,6 +106,14 @@ class TradeNotesPage extends StatefulWidget {
   State<TradeNotesPage> createState() => _NotesPageState();
 }
 
+class _NoteSearchHit {
+  final NoteItem note;
+  final int blockIndex, offset, lineNumber;
+  final String line;
+  final bool isTitle;
+  const _NoteSearchHit({required this.note, required this.blockIndex, required this.offset, required this.lineNumber, required this.line, this.isTitle = false});
+}
+
 class _NotesPageState extends State<TradeNotesPage> {
   static const _key = 'notes_v1';
   static const _foldersKey = 'notes_folders_v1';
@@ -839,7 +847,7 @@ class _NotesPageState extends State<TradeNotesPage> {
     });
   }
 
-  void _edit(NoteItem note, {String? searchTerm}) {
+  void _edit(NoteItem note, {String? searchTerm, int? matchBlockIndex, int? matchOffset}) {
     _disposeTextFields();
     _draft.clear();
     _draftBlockKeys.clear();
@@ -857,7 +865,10 @@ class _NotesPageState extends State<TradeNotesPage> {
       if (b.type == 'text') {
         _textControllers.add(TextEditingController(text: b.value));
         _focusNodes.add(FocusNode());
-        if (targetBlock < 0 && query.isNotEmpty) {
+        if (matchBlockIndex == i && matchOffset != null) {
+          targetBlock = i;
+          targetOffset = matchOffset;
+        } else if (matchBlockIndex == null && targetBlock < 0 && query.isNotEmpty) {
           final found = b.value.toLowerCase().indexOf(query.toLowerCase());
           if (found >= 0) {
             targetBlock = i;
@@ -1412,6 +1423,34 @@ class _NotesPageState extends State<TradeNotesPage> {
     }
   }
 
+
+  List<_NoteSearchHit> get _searchHits {
+    final query = _search.text.trim().toLowerCase();
+    if (query.isEmpty) return const [];
+    final hits = <_NoteSearchHit>[];
+    for (final note in _filtered) {
+      final titleOffset = note.title.toLowerCase().indexOf(query);
+      if (titleOffset >= 0) {
+        hits.add(_NoteSearchHit(note: note, blockIndex: -1, offset: titleOffset, lineNumber: 0, line: note.title, isTitle: true));
+      }
+      for (var blockIndex = 0; blockIndex < note.blocks.length; blockIndex++) {
+        final block = note.blocks[blockIndex];
+        if (block.type != 'text') continue;
+        final lines = block.value.split('\n');
+        var blockOffset = 0;
+        for (var lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+          final line = lines[lineIndex];
+          final offset = line.toLowerCase().indexOf(query);
+          if (offset >= 0) {
+            hits.add(_NoteSearchHit(note: note, blockIndex: blockIndex, offset: blockOffset + offset, lineNumber: lineIndex + 1, line: line));
+          }
+          blockOffset += line.length + 1;
+        }
+      }
+    }
+    return hits;
+  }
+
   List<NoteItem> get _filtered {
     final q = _search.text.trim().toLowerCase();
     final result = _notes.where((n) {
@@ -1870,8 +1909,43 @@ class _NotesPageState extends State<TradeNotesPage> {
                                                       child: Text('حذف پوشه'))
                                                 ])),
                                   ),
-                                for (final n in notes)
-                                  Builder(builder: (context) {
+
+                                if (searching)
+                                  for (final hit in _searchHits)
+                                    Card(
+                                      color: NotesAppearanceSettings.color('cardBackground'),
+                                      margin: const EdgeInsets.symmetric(vertical: 4),
+                                      child: ListTile(
+                                        onTap: () => _edit(hit.note,
+                                          searchTerm: _search.text.trim(),
+                                          matchBlockIndex: hit.isTitle ? null : hit.blockIndex,
+                                          matchOffset: hit.isTitle ? null : hit.offset),
+                                        leading: Icon(hit.isTitle ? Icons.title : Icons.search,
+                                          color: NotesAppearanceSettings.color('icon')),
+                                        title: Text(hit.note.title,
+                                          textDirection: TextDirection.rtl,
+                                          style: TextStyle(fontFamily: fonts.inputFontFamily,
+                                            fontSize: fonts.inputTextSize, fontWeight: FontWeight.bold,
+                                            color: NotesAppearanceSettings.color('inputText'))),
+                                        subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                          Text(hit.line, textDirection: TextDirection.rtl,
+                                            maxLines: 3, overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(fontFamily: fonts.inputFontFamily,
+                                              fontSize: fonts.inputTextSize,
+                                              color: NotesAppearanceSettings.color('inputText'))),
+                                          Text(hit.isTitle ? 'عنوان یادداشت' : 'بخش ' + (hit.blockIndex + 1).toString() + ' • خط ' + hit.lineNumber.toString(),
+                                            textDirection: TextDirection.rtl,
+                                            style: Theme.of(context).textTheme.bodySmall),
+                                          if (hit.note.folderId != null)
+                                            Text('پوشه: ' + _folderPath(hit.note.folderId),
+                                              textDirection: TextDirection.rtl,
+                                              style: Theme.of(context).textTheme.bodySmall),
+                                        ]),
+                                      ),
+                                    ),
+                                if (!searching)
+                                  for (final n in notes)
+                                    Builder(builder: (context) {
                                     final preview = n.searchableText.trim();
                                     final imageCount = n.blocks
                                         .where((b) => b.type == 'image')
