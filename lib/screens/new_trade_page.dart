@@ -445,7 +445,7 @@ class _NotesPageState extends State<TradeNotesPage> {
         )));
       if (ok != true) return;
       final ids = _notes.map((x) => x.id).toSet();
-      for (final n in imported.where((x) => selectedIds.contains(x.id))) {_notes.add(ids.contains(n.id)?NoteItem(id:'${n.id}_imported_${DateTime.now().microsecondsSinceEpoch}',title:n.title,blocks:n.blocks,createdAt:n.createdAt,updatedAt:n.updatedAt,folderId:n.folderId):n);}
+      for (final n in imported.where((x) => selectedIds.contains(x.id))) {_notes.add(ids.contains(n.id)?NoteItem(id:'${n.id}_imported_${DateTime.now().microsecondsSinceEpoch}',title:n.title,blocks:n.blocks,createdAt:n.createdAt,updatedAt:n.updatedAt,folderId:n.folderId,themeId:n.themeId):n);}
       await _persist(); if(mounted)setState((){}); _message('یادداشت‌ها وارد شدند.');
     } catch(e) { _message('ورود ZIP ناموفق بود: $e'); }
   }
@@ -1625,12 +1625,10 @@ class _NotesPageState extends State<TradeNotesPage> {
                   controller: _title,
                   textDirection: TextDirection.rtl,
                   style: TextStyle(
-                    fontFamily:
-                        NotesAppearanceSettings.fonts.value.inputFontFamily,
-                    fontSize:
-                        NotesAppearanceSettings.fonts.value.inputTextSize + 3,
+                    fontFamily: _activeTextTheme.fontFamily,
+                    fontSize: _activeTextTheme.fontSize + 3,
                     fontWeight: FontWeight.bold,
-                    color: NotesAppearanceSettings.color('inputText'),
+                    color: _activeTextTheme.foreground,
                   ),
                   decoration: const InputDecoration(
                     hintText: 'عنوان یادداشت',
