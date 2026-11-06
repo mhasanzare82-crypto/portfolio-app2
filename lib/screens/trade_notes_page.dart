@@ -1538,7 +1538,6 @@ class _NewTradePageState extends State<NewTradePage> {
     );
   }
 
-  Future<void> _loadTradeNotes() async {
   // ZIP / DOCX backup and custom typography
   Future<void> _loadNoteDisplaySettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -1859,6 +1858,7 @@ class _NewTradePageState extends State<NewTradePage> {
       if (mounted) setState(() => _noteTransferInProgress = false);
     }
   }
+
 
   Future<void> _loadTradeNotes() async {
     if (!mounted) return;
