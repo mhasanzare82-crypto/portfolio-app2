@@ -989,7 +989,7 @@ class _NotesPageState extends State<TradeNotesPage> {
     }
   }
 
-  Future<void> _drawOnImage(int blockIndex) async {
+  Future<void> _shareImageFile(String path) async {\n    try {\n      if (!await File(path).exists()) throw StateError('فایل تصویر پیدا نشد');\n      await Share.shareXFiles([XFile(path, mimeType: 'image/png')], text: 'تصویر یادداشت');\n    } catch (e) {\n      _message('ذخیره تصویر ناموفق بود: $e');\n    }\n  }\n\n  Future<void> _drawOnImage(int blockIndex) async {
     final path = _draft[blockIndex].value;
     final paintKey = GlobalKey();
     final strokes = <_DrawingStroke>[];
@@ -1516,9 +1516,9 @@ class _NotesPageState extends State<TradeNotesPage> {
         minLines: 2,
         textDirection: TextDirection.rtl,
         style: TextStyle(
-            fontFamily: NotesAppearanceSettings.fonts.value.inputFontFamily,
-            fontSize: NotesAppearanceSettings.fonts.value.inputTextSize,
-            color: NotesAppearanceSettings.color('inputText')),
+            fontFamily: _activeTextTheme.fontFamily,
+            fontSize: _activeTextTheme.fontSize,
+            color: _activeTextTheme.foreground),
         decoration: const InputDecoration(
             hintText: 'متن یادداشت را بنویسید...',
             border: InputBorder.none,
@@ -1532,13 +1532,17 @@ class _NotesPageState extends State<TradeNotesPage> {
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.file(File(block.value),
+                child: InteractiveViewer(minScale: 1, maxScale: 5, panEnabled: true, child: Image.file(File(block.value),
                     fit: BoxFit.contain,
                     errorBuilder: (_, __, ___) =>
-                        const Text('تصویر در دسترس نیست'))),
+                        const Text('تصویر در دسترس نیست')))),
             Align(
                 alignment: Alignment.centerLeft,
                 child: Wrap(children: [
+                  TextButton.icon(
+                      onPressed: () => _shareImageFile(block.value),
+                      icon: const Icon(Icons.download),
+                      label: const Text('ذخیره تصویر')),
                   TextButton.icon(
                       onPressed: () => _drawOnImage(index),
                       icon: const Icon(Icons.draw),
