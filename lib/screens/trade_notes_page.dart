@@ -132,7 +132,7 @@ class _NotesPageState extends State<TradeNotesPage> {
   @override
   void initState() {
     super.initState();
-    NotesAppearanceSettings.load();
+    NotesAppearanceSettings.load().then((_) => _loadCustomNotesFont());
     _load();
   }
 
