@@ -85,6 +85,8 @@ class _NewTradePageState extends State<NewTradePage> {
       TextEditingController(text: 'GOLDUSDT');
   final FocusNode _symbolFocusNode = FocusNode();
   List<String> _savedAssetSymbols = ['GOLDUSDT'];
+  List<String> _futuresAssetSymbols = [];
+  bool _loadingFuturesAssets = false;
 
   final TextEditingController _marginController = TextEditingController();
 
@@ -273,6 +275,7 @@ class _NewTradePageState extends State<NewTradePage> {
         _loadCustomFields(),
         _loadPreTradeItems(),
         _loadSavedAssetSymbols(),
+        _loadFuturesAssetSymbols(),
         _connectToTicker(),
       ]);
     } catch (error) {
@@ -300,6 +303,94 @@ class _NewTradePageState extends State<NewTradePage> {
         .toSet()
         .toList()
       ..sort();
+  }
+
+  Future<void> _loadFuturesAssetSymbols() async {
+    _loadingFuturesAssets = true;
+    final client = HttpClient();
+    try {
+      final uri = Uri.https(
+        'lbkperp.lbank.com',
+        '/cfd/openApi/v1/pub/instrument',
+        {'productGroup': 'SwapU'},
+      );
+      final request = await client.getUrl(uri);
+      request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+      final response = await request.close();
+      if (response.statusCode != HttpStatus.ok) {
+        throw HttpException(
+          'دریافت نمادهای فیوچرز ناموفق بود: HTTP ${response.statusCode}',
+          uri: uri,
+        );
+      }
+
+      final responseText = await response.transform(utf8.decoder).join();
+      final decoded = jsonDecode(responseText);
+      final dynamic rows = decoded is List
+          ? decoded
+          : decoded is Map
+              ? (decoded['data'] ?? decoded['result'] ?? const [])
+              : const [];
+
+      final symbols = <String>{};
+      if (rows is List) {
+        for (final row in rows) {
+          if (row is Map) {
+            final symbol = (row['symbol'] ?? row['symbolName'])
+                ?.toString()
+                .trim()
+                .toUpperCase();
+            if (symbol != null && symbol.isNotEmpty) {
+              symbols.add(symbol.replaceAll(RegExp(r'[^A-Z0-9_]'), ''));
+            }
+          } else if (row is String && row.trim().isNotEmpty) {
+            symbols.add(row.trim().toUpperCase());
+          }
+        }
+      }
+
+      if (symbols.isEmpty) {
+        throw const FormatException('فهرست نمادهای فیوچرز خالی است.');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _futuresAssetSymbols = symbols.toList()..sort();
+        _loadingFuturesAssets = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loadingFuturesAssets = false;
+        // در صورت قطعی API، فهرست دارایی‌های قبلی همچنان قابل جست‌وجو است.
+        _futuresAssetSymbols = [];
+      });
+      debugPrint('LBank futures symbols load error: $error');
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<void> _selectFuturesAsset(String symbol) async {
+    final normalized = symbol.trim().toUpperCase();
+    if (normalized.isEmpty) return;
+
+    _symbolController.value = TextEditingValue(
+      text: normalized,
+      selection: TextSelection.collapsed(offset: normalized.length),
+    );
+
+    // قیمت‌ها و مقادیر وابسته به نماد قبلی نباید برای نماد جدید باقی بمانند.
+    _livePrice = null;
+    _pendingLivePrice = null;
+    _minPriceSeen = 0;
+    _maxPriceSeen = 0;
+    _entryPreciseValue = null;
+    _entryController.clear();
+    _priceChangePercent = 0;
+    _recalculate();
+
+    await _changeSymbol();
   }
 
   // ============================================================
@@ -2674,19 +2765,15 @@ class _NewTradePageState extends State<NewTradePage> {
                     displayStringForOption: (option) => option,
                     optionsBuilder: (textEditingValue) {
                       final query = textEditingValue.text.trim().toUpperCase();
-                      if (query.isEmpty) return _savedAssetSymbols;
-                      return _savedAssetSymbols.where(
+                      final availableSymbols = _futuresAssetSymbols.isNotEmpty
+                          ? _futuresAssetSymbols
+                          : _savedAssetSymbols;
+                      if (query.isEmpty) return availableSymbols.take(30);
+                      return availableSymbols.where(
                         (symbol) => symbol.contains(query),
-                      );
+                      ).take(50);
                     },
-                    onSelected: (symbol) async {
-                      _symbolController.value = TextEditingValue(
-                        text: symbol,
-                        selection:
-                            TextSelection.collapsed(offset: symbol.length),
-                      );
-                      await _changeSymbol();
-                    },
+                    onSelected: _selectFuturesAsset,
                     fieldViewBuilder: (
                       context,
                       controller,
@@ -2698,15 +2785,14 @@ class _NewTradePageState extends State<NewTradePage> {
                         focusNode: focusNode,
                         keyboardType: TextInputType.text,
                         textCapitalization: TextCapitalization.characters,
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) async {
-                          onFieldSubmitted();
-                          await _changeSymbol();
-                        },
+                        textInputAction: TextInputAction.search,
                         style: const TextStyle(fontSize: 12),
                         decoration: _inputDecoration(
                           label: 'دارایی',
                           englishLabel: 'Asset',
+                          hint: _loadingFuturesAssets
+                              ? 'در حال دریافت نمادهای فیوچرز...'
+                              : 'جست‌وجوی نماد',
                         ).copyWith(
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 6,
