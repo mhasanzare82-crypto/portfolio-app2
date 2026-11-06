@@ -1,0 +1,56 @@
+name: lbank_gold
+
+description: LBank GOLDUSDT Live Price
+
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # شبکه و ارتباط با سرویس قیمت
+  http: ^1.6.0
+
+  # اعلان‌ها
+  flutter_local_notifications: ^20.1.0
+
+  # تاریخ شمسی
+  shamsi_date: ^1.1.1
+
+  # تنظیمات و پایگاه داده
+  shared_preferences: ^2.5.3
+  sqflite: ^2.4.2
+  path: ^1.9.1
+  path_provider: ^2.1.5
+  archive: ^3.6.1
+
+  # فایل و رسانه
+  image_picker: ^1.1.2
+  file_picker: ^8.3.7
+  audioplayers: ^6.5.0
+  record: ^6.2.1
+
+  # خروجی Excel
+  excel: ^4.0.6
+
+  # خروجی Word
+  docx_dart: ^1.2.0
+  docx_to_text: ^1.0.1
+  webview_flutter: ^4.13.0
+  share_plus: ^10.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^2.0.3
+
+flutter:
+  uses-material-design: true
