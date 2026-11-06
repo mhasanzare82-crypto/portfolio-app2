@@ -177,8 +177,61 @@ class AppColors {
     revision.value++;
   }
 
-  // رنگ‌های پیش‌فرض اولیه؛ پیش از بارگذاری تنظیمات ذخیره‌شده ثبت می‌شوند.
-  static final Map<String, int> defaultColors = getCurrentColors();
+  // پالت اصلی برنامه؛ مستقل از رنگ‌های بارگذاری‌شده از حافظه.
+  static final Map<String, int> defaultColors = {
+    'background': const Color(0xFF0D1117).toARGB32(),
+    'mainFrame': const Color(0xFF0B1F3A).toARGB32(),
+    'cardBackground': const Color(0xFF111827).toARGB32(),
+    'boxBackground': const Color(0xFF172033).toARGB32(),
+    'text': Colors.white.toARGB32(),
+    'secondaryText': const Color(0xFFB0B8C4).toARGB32(),
+    'disabledText': const Color(0xFF6B7280).toARGB32(),
+    'border': const Color(0xFF374151).toARGB32(),
+    'divider': const Color(0xFF374151).toARGB32(),
+    'profit': const Color(0xFF00C853).toARGB32(),
+    'loss': const Color(0xFFF44336).toARGB32(),
+    'neutral': const Color(0xFFB0B8C4).toARGB32(),
+    'long': const Color(0xFF00C853).toARGB32(),
+    'short': const Color(0xFFF44336).toARGB32(),
+    'stop': const Color(0xFFF44336).toARGB32(),
+    'entry': const Color(0xFF2196F3).toARGB32(),
+    'target': const Color(0xFFFF9800).toARGB32(),
+    'livePrice': const Color(0xFFFFC107).toARGB32(),
+    'drawdown': const Color(0xFFF44336).toARGB32(),
+    'openPositions': const Color(0xFF111827).toARGB32(),
+    'dashboard': const Color(0xFF172033).toARGB32(),
+    'reports': const Color(0xFF1E293B).toARGB32(),
+    'custom': const Color(0xFF202124).toARGB32(),
+    'navigationBackground': const Color(0xFF111827).toARGB32(),
+    'navigationSelected': const Color(0xFF2196F3).toARGB32(),
+    'navigationUnselected': const Color(0xFF9CA3AF).toARGB32(),
+    'button': const Color(0xFF2196F3).toARGB32(),
+    'buttonText': Colors.white.toARGB32(),
+    'buttonDisabled': const Color(0xFF374151).toARGB32(),
+    'inputBackground': const Color(0xFF172033).toARGB32(),
+    'inputBorder': const Color(0xFF374151).toARGB32(),
+    'inputFocusedBorder': const Color(0xFF2196F3).toARGB32(),
+    'inputErrorBorder': const Color(0xFFF44336).toARGB32(),
+    'chartGrid': const Color(0xFFFF9406).toARGB32(),
+    'chartLine': const Color(0xFFFF00AB).toARGB32(),
+    'chartPoint': const Color(0xFFFF07EA).toARGB32(),
+    'chartText': const Color(0xFFD9067DED).toARGB32(),
+    'success': const Color(0xFF00C853).toARGB32(),
+    'warning': const Color(0xFFFFC107).toARGB32(),
+    'error': const Color(0xFFF44336).toARGB32(),
+    'alertActive': const Color(0xFF2196F3).toARGB32(),
+    'alertInactive': const Color(0xFF808080).toARGB32(),
+    'required': const Color(0xFFF44336).toARGB32(),
+    'emptyIcon': const Color(0xFF757575).toARGB32(),
+    'emptyDescription': const Color(0xFF9E9E9E).toARGB32(),
+    'imageDeleteBackground': const Color(0x99000000).toARGB32(),
+    'imageDeleteIcon': Colors.white.toARGB32(),
+    'dragHelper': const Color(0x8AFFFFFF).toARGB32(),
+    'parameterDivider': const Color(0x1FFFFFFF).toARGB32(),
+    'assetIcon': const Color(0xFFFFC107).toARGB32(),
+    'assetIconBackground': const Color(0x1FFFFC107).toARGB32(),
+    'chevron': const Color(0x8AFFFFFF).toARGB32(),
+  };
 
   static Future<void> restoreDefaults() async {
     final prefs = await SharedPreferences.getInstance();
