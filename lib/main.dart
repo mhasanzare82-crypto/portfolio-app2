@@ -550,7 +550,10 @@ class _LBankGoldAppState extends State<LBankGoldApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return ValueListenableBuilder<int>(
+      valueListenable: AppColors.revision,
+      builder: (context, revision, child) {
+        return MaterialApp(
       debugShowCheckedModeBanner: false,
 
       title: 'LBank GOLDUSDT',
@@ -584,6 +587,8 @@ class _LBankGoldAppState extends State<LBankGoldApp> {
       },
 
       home: const HomePage(),
+        );
+      },
     );
   }
 }
