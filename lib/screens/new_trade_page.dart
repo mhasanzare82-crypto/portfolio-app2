@@ -4351,21 +4351,7 @@ class _NewTradePageState extends State<NewTradePage> {
       appBar: AppBar(
         title: const Text('معامله جدید'),
         actions: [
-          IconButton(tooltip: 'خروجی ZIP همه یادداشت‌ها',
-            onPressed: _noteTransferInProgress ? null : _exportNotesZip,
-            icon: const Icon(Icons.archive_outlined, size: 20)),
-          IconButton(tooltip: 'ورود فایل ZIP',
-            onPressed: _noteTransferInProgress ? null : _importNotesZip,
-            icon: const Icon(Icons.unarchive_outlined, size: 20)),
-          IconButton(tooltip: 'خروجی Word (DOCX)',
-            onPressed: _noteTransferInProgress ? null : _exportNotesDocx,
-            icon: const Icon(Icons.file_upload_outlined, size: 20)),
-          IconButton(tooltip: 'ورود فایل Word (DOCX)',
-            onPressed: _noteTransferInProgress ? null : _importNotesDocx,
-            icon: const Icon(Icons.file_download_outlined, size: 20)),
-          IconButton(tooltip: 'تنظیم فونت و اندازه نوشته‌ها',
-            onPressed: _showNoteFontSettings,
-            icon: const Icon(Icons.text_fields, size: 20)),
+          IconButton(tooltip:'تنظیم فونت و اندازه نوشته‌ها',onPressed:_showNoteFontSettings,icon:const Icon(Icons.text_fields,size:20)),
         ],
       ),
       body: SafeArea(
