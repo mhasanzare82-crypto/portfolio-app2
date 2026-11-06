@@ -119,9 +119,9 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
   String get _currentTitle {
     switch (_selectedCategory) {
       case 1:
-        return 'چک لیست روانشناسی';
+        return 'چک لیست های غیر معاملاتی';
       case 2:
-        return 'چک لیست فنی';
+        return 'چک لیست های معاملاتی';
       default:
         return 'سوالات قبل از معامله';
     }
@@ -172,8 +172,8 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
   // ADD
   // =========================================================
 
-  Future<void> _addItem() async {
-    final result = await _showItemDialog();
+  Future<void> _addItem({String folderName = ''}) async {
+    final result = await _showItemDialog(existingFolderName: folderName);
 
     if (result == null) {
       return;
@@ -268,6 +268,139 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
     } catch (e) {
       _showMessage('افزودن موارد ناموفق بود: $e');
     }
+  }
+
+
+  Future<void> _createCollection() async {
+    final titleController = TextEditingController();
+    final itemsController = TextEditingController();
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('ایجاد مجموعه جدید'),
+        content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(
+          mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: titleController, autofocus: true, decoration: const InputDecoration(labelText: 'عنوان مجموعه')),
+            const SizedBox(height: 12),
+            TextField(controller: itemsController, minLines: 5, maxLines: 10, keyboardType: TextInputType.multiline,
+              decoration: const InputDecoration(labelText: 'موارد مجموعه', hintText: 'هر خط یک مورد', border: OutlineInputBorder())),
+          ]))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('لغو')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, {'title': titleController.text.trim(), 'items': itemsController.text}), child: const Text('ایجاد مجموعه')),
+        ],
+      ),
+    );
+    titleController.dispose();
+    itemsController.dispose();
+    if (result == null) return;
+    final title = (result['title'] ?? '').trim();
+    final lines = (result['items'] ?? '').split(RegExp(r'\r?\n')).map((v) => v.trim()).where((v) => v.isNotEmpty).toList();
+    if (title.isEmpty) { _showMessage('عنوان مجموعه را وارد کن.'); return; }
+    if (lines.isEmpty) { _showMessage('حداقل یک مورد برای مجموعه وارد کن.'); return; }
+    try {
+      for (final line in lines) {
+        await _repository.createItem(title: line, category: _currentCategory, itemType: _currentItemType, isRequired: false, isEnabled: true, folderName: title);
+      }
+      await _loadItems();
+      _showMessage('مجموعه «$title» با ${numbers.formatInteger(lines.length)} مورد ایجاد شد.');
+    } catch (e) { _showMessage('ایجاد مجموعه ناموفق بود: $e'); }
+  }
+
+  Future<void> _renameCollection(String oldTitle, List<Map<String, dynamic>> items) async {
+    final controller = TextEditingController(text: oldTitle);
+    final value = await showDialog<String>(context: context, builder: (dialogContext) => AlertDialog(
+      title: const Text('ویرایش نام مجموعه'),
+      content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(labelText: 'عنوان مجموعه جدید')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('لغو')),
+        FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('ذخیره')),
+      ],
+    ));
+    controller.dispose();
+    if (value == null || value.isEmpty || value == oldTitle) return;
+    try {
+      for (final item in items) {
+        await _repository.updateItem(itemId: item['item_id'] as int, title: item['item_title']?.toString() ?? '',
+          category: _currentCategory, itemType: _currentItemType, isRequired: item['is_required'] == 1, folderName: value);
+      }
+      await _loadItems();
+      _showMessage('نام مجموعه تغییر کرد.');
+    } catch (e) { _showMessage('ویرایش نام مجموعه ناموفق بود: $e'); }
+  }
+
+  Future<void> _toggleCollection(List<Map<String, dynamic>> items) async {
+    final enable = items.any((item) => item['is_enabled'] != 1);
+    for (final item in items) {
+      final id = item['item_id'];
+      if (id is int) await _repository.setEnabled(id, enable);
+    }
+    await _loadItems();
+    _showMessage(enable ? 'همه موارد مجموعه فعال شدند.' : 'همه موارد مجموعه غیرفعال شدند.');
+  }
+
+  Future<void> _deleteCollection(String title, List<Map<String, dynamic>> items) async {
+    final yes = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(
+      title: const Text('حذف مجموعه؟'),
+      content: Text('مجموعه «$title» و تمام موارد آن حذف شوند؟'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('لغو')),
+        FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('حذف')),
+      ],
+    ));
+    if (yes != true) return;
+    for (final item in items) {
+      final id = item['item_id'];
+      if (id is int) await _repository.deleteItem(id);
+    }
+    await _loadItems();
+    _showMessage('مجموعه حذف شد.');
+  }
+
+  Future<void> _exportCollection(String title, List<Map<String, dynamic>> items) async {
+    final content = items.map((item) => item['item_title']?.toString().trim() ?? '').where((v) => v.isNotEmpty).join('\n');
+    final safe = title.replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_');
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'خروجی مجموعه $title', fileName: '${safe.isEmpty ? 'collection' : safe}.txt',
+      type: FileType.custom, allowedExtensions: ['txt'], bytes: Uint8List.fromList(utf8.encode(content)),
+    );
+    if (path != null) _showMessage('خروجی TXT مجموعه ذخیره شد.');
+  }
+
+  Widget _buildCollectionCard(String title, List<Map<String, dynamic>> items) {
+    final allEnabled = items.every((item) => item['is_enabled'] == 1);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text('${numbers.formatInteger(items.length)} مورد • ${allEnabled ? 'فعال' : 'دارای مورد غیرفعال'}'),
+        children: [
+          const Divider(height: 1),
+          Padding(padding: const EdgeInsets.all(8), child: Wrap(spacing: 6, runSpacing: 6, children: [
+            OutlinedButton.icon(onPressed: () => _addItem(folderName: title == 'بدون مجموعه' ? '' : title), icon: const Icon(Icons.add), label: const Text('افزودن مورد')),
+            OutlinedButton.icon(onPressed: () => _renameCollection(title, items), icon: const Icon(Icons.edit_outlined), label: const Text('ویرایش نام')),
+            OutlinedButton.icon(onPressed: () => _toggleCollection(items), icon: Icon(allEnabled ? Icons.visibility_off_outlined : Icons.visibility_outlined), label: Text(allEnabled ? 'غیرفعال‌سازی' : 'فعال‌سازی')),
+            OutlinedButton.icon(onPressed: () => _exportCollection(title, items), icon: const Icon(Icons.download_outlined), label: const Text('خروجی TXT')),
+            TextButton.icon(onPressed: () => _deleteCollection(title, items), icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              label: const Text('حذف مجموعه', style: TextStyle(color: Colors.redAccent))),
+          ])),
+          for (var i = 0; i < items.length; i++) _buildItemCard(items[i], i),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Map<String, List<Map<String, dynamic>>> get _groupedItems {
+    final groups = <String, List<Map<String, dynamic>>>{};
+    for (final item in _items) {
+      final raw = item['folder_name']?.toString().trim() ?? '';
+      final title = raw.isEmpty ? 'بدون مجموعه' : raw;
+      groups.putIfAbsent(title, () => <Map<String, dynamic>>[]).add(item);
+    }
+    return groups;
   }
 
   Future<void> _bulkSetEnabled(bool enabled) async {
@@ -726,7 +859,6 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
 
   Widget _buildCategoryButton({
     required int index,
-    required IconData icon,
     required String title,
   }) {
     final selected = _selectedCategory == index;
@@ -759,25 +891,13 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
 
             _loadItems();
           },
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 22,
-              ),
-              const SizedBox(
-                height: 5,
-              ),
-              Text(
+          child: Text(
                 title,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 12,
                 ),
               ),
-            ],
-          ),
         ),
       ),
     );
@@ -1118,191 +1238,39 @@ class _PreTradeManagementPageState extends State<PreTradeManagementPage> {
   // =========================================================
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
+    final groups = _groupedItems;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'مدیریت سوالات و چک‌لیست‌ها',
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addItem,
-        icon: const Icon(
-          Icons.add,
-        ),
-        label: const Text(
-          'افزودن',
-        ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                12,
-                12,
-                12,
-                4,
-              ),
-              child: Row(
-                children: [
-                  _buildCategoryButton(
-                    index: 0,
-                    icon: Icons.help_outline,
-                    title: 'سوالات قبل از معامله',
-                  ),
-                  _buildCategoryButton(
-                    index: 1,
-                    icon: Icons.psychology_outlined,
-                    title: 'چک لیست روانشناسی',
-                  ),
-                  _buildCategoryButton(
-                    index: 2,
-                    icon: Icons.engineering_outlined,
-                    title: 'چک لیست فنی',
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(
-                12,
-              ),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(
-                    14,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _selectedCategory == 0
-                            ? Icons.help_outline
-                            : _selectedCategory == 1
-                                ? Icons.psychology_outlined
-                                : Icons.engineering_outlined,
-                        color: AppColors.button,
-                      ),
-                      const SizedBox(
-                        width: 10,
-                      ),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _currentTitle,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(
-                              height: 3,
-                            ),
-                            Text(
-                              '${numbers.formatInteger(_items.length)} مورد',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.secondaryText,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'ورود از فایل TXT (هر خط یک مورد)',
-                        onPressed: _importCurrentItems,
-                        icon: const Icon(Icons.file_open_outlined),
-                      ),
-                      IconButton(
-                        tooltip: 'خروجی TXT',
-                        onPressed: _exportCurrentItems,
-                        icon: const Icon(Icons.file_download_outlined),
-                      ),
-                      IconButton(
-                          tooltip: 'افزودن چند مورد',
-                          onPressed: _addManyItems,
-                          icon: const Icon(Icons.playlist_add)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            if (_selectedItemIds.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Wrap(spacing: 8, children: [
-                  Chip(
-                      label: Text(
-                          '${numbers.formatInteger(_selectedItemIds.length)} انتخاب‌شده')),
-                  TextButton.icon(
-                      onPressed: () => _bulkSetEnabled(true),
-                      icon: const Icon(Icons.check_circle_outline),
-                      label: const Text('فعال‌سازی')),
-                  TextButton.icon(
-                      onPressed: () => _bulkSetEnabled(false),
-                      icon: const Icon(Icons.pause_circle_outline),
-                      label: const Text('غیرفعال‌سازی')),
-                  TextButton.icon(
-                      onPressed: _exportSelectedItems,
-                      icon: const Icon(Icons.file_download_outlined),
-                      label: const Text('خروجی')),
-                  TextButton.icon(
-                      onPressed: _bulkDelete,
-                      icon: const Icon(Icons.delete_outline),
-                      label: const Text('حذف')),
-                ]),
-              ),
-            Expanded(
-              child: _loading
-                  ? Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.button,
-                      ),
-                    )
-                  : RefreshIndicator(
-                      color: AppColors.button,
-                      backgroundColor: AppColors.cardBackground,
-                      onRefresh: _loadItems,
-                      child: _items.isEmpty
-                          ? ListView(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              padding: const EdgeInsets.fromLTRB(
-                                12,
-                                4,
-                                12,
-                                100,
-                              ),
-                              children: [
-                                _buildEmptyState(),
-                              ],
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(
-                                12,
-                                4,
-                                12,
-                                100,
-                              ),
-                              itemCount: _items.length,
-                              itemBuilder: (
-                                context,
-                                index,
-                              ) {
-                                return _buildItemCard(
-                                  _items[index],
-                                  index,
-                                );
-                              },
-                            ),
-                    ),
-            ),
-          ],
-        ),
-      ),
+      appBar: AppBar(title: const Text('مدیریت سوالات و چک‌لیست‌ها')),
+      body: SafeArea(child: Column(children: [
+        Padding(padding: const EdgeInsets.fromLTRB(10, 12, 10, 4), child: Row(children: [
+          _buildCategoryButton(index: 0, title: 'سوالات قبل از معامله'),
+          _buildCategoryButton(index: 1, title: 'چک لیست های غیر معاملاتی'),
+          _buildCategoryButton(index: 2, title: 'چک لیست های معاملاتی'),
+        ])),
+        Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 8), child: Wrap(
+          spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
+            FilledButton.icon(onPressed: _createCollection, icon: const Icon(Icons.create_new_folder_outlined), label: const Text('ایجاد مجموعه')),
+            IconButton(tooltip: 'ورود TXT (هر خط یک مورد)', onPressed: _importCurrentItems, icon: const Icon(Icons.file_open_outlined)),
+            IconButton(tooltip: 'خروجی TXT همه موارد این بخش', onPressed: _exportCurrentItems, icon: const Icon(Icons.file_download_outlined)),
+            IconButton(tooltip: 'افزودن چند مورد به یک موضوع', onPressed: _addManyItems, icon: const Icon(Icons.playlist_add)),
+          ])),
+        if (_selectedItemIds.isNotEmpty)
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Wrap(spacing: 8, children: [
+            Chip(label: Text('${numbers.formatInteger(_selectedItemIds.length)} انتخاب‌شده')),
+            TextButton.icon(onPressed: () => _bulkSetEnabled(true), icon: const Icon(Icons.check_circle_outline), label: const Text('فعال‌سازی')),
+            TextButton.icon(onPressed: () => _bulkSetEnabled(false), icon: const Icon(Icons.pause_circle_outline), label: const Text('غیرفعال‌سازی')),
+            TextButton.icon(onPressed: _exportSelectedItems, icon: const Icon(Icons.file_download_outlined), label: const Text('خروجی')),
+            TextButton.icon(onPressed: _bulkDelete, icon: const Icon(Icons.delete_outline), label: const Text('حذف')),
+          ])),
+        Expanded(child: _loading
+          ? Center(child: CircularProgressIndicator(color: AppColors.button))
+          : RefreshIndicator(color: AppColors.button, backgroundColor: AppColors.cardBackground, onRefresh: _loadItems,
+              child: groups.isEmpty
+                ? ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(16), children: [_buildEmptyState()])
+                : ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+                    children: [for (final entry in groups.entries) _buildCollectionCard(entry.key, entry.value)]))),
+      ])),
     );
   }
 }
