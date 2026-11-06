@@ -29,7 +29,7 @@ class DemoApp extends StatelessWidget {
   }
 }
 
-enum CollectionKind { questions, checklists }
+enum CollectionKind { questions, nonTradingChecklists, tradingChecklists }
 
 enum AnswerMode { checkbox, choices }
 
@@ -69,7 +69,7 @@ class _QuestionChecklistDemoPageState extends State<QuestionChecklistDemoPage> {
   final List<EntryCollection> _collections = [
     EntryCollection(
       title: 'کنترل احساسات',
-      kind: CollectionKind.checklists,
+      kind: CollectionKind.nonTradingChecklists,
       answerMode: AnswerMode.checkbox,
       items: [
         EntryItem(text: 'بدون عجله وارد معامله می‌شوم'),
@@ -88,17 +88,15 @@ class _QuestionChecklistDemoPageState extends State<QuestionChecklistDemoPage> {
     ),
   ];
 
-  List<EntryCollection> get _visibleTabCollections => _collections
-      .where((c) => _tab == 0
-          ? c.kind == CollectionKind.questions
-          : _tab == 1
-              ? c.kind == CollectionKind.checklists
-              : true)
-      .toList();
+  List<EntryCollection> get _visibleTabCollections => _collections.where((c) {
+        if (_tab == 0) return c.kind == CollectionKind.nonTradingChecklists;
+        if (_tab == 1) return c.kind == CollectionKind.tradingChecklists;
+        return c.kind == CollectionKind.questions;
+      }).toList();
 
   Future<void> _createCollection() async {
-    final isQuestion = _tab == 0;
-    if (_tab == 2) {
+    final isQuestion = _tab == 2;
+    if (_tab == 3) {
       _showMessage(
           'در نمونهٔ فعلی، ورود و خروج فایل TXT در مرحلهٔ بعد اضافه می‌شود.');
       return;
@@ -106,7 +104,11 @@ class _QuestionChecklistDemoPageState extends State<QuestionChecklistDemoPage> {
     final result = await showDialog<EntryCollection>(
       context: context,
       builder: (_) => CollectionEditorDialog(
-        kind: isQuestion ? CollectionKind.questions : CollectionKind.checklists,
+        kind: isQuestion
+            ? CollectionKind.questions
+            : _tab == 0
+                ? CollectionKind.nonTradingChecklists
+                : CollectionKind.tradingChecklists,
       ),
     );
     if (result != null) setState(() => _collections.insert(0, result));
@@ -161,7 +163,7 @@ class _QuestionChecklistDemoPageState extends State<QuestionChecklistDemoPage> {
   void _exportTxt(EntryCollection collection) {
     final lines = <String>[
       'عنوان: ${collection.title}',
-      'نوع: ${collection.kind == CollectionKind.questions ? 'سؤالات' : 'چک‌لیست'}',
+      'نوع: ${collection.kind == CollectionKind.questions ? 'سؤالات قبل از معامله' : collection.kind == CollectionKind.nonTradingChecklists ? 'چک لیست های غیر معاملاتی' : 'چک لیست های معاملاتی'}',
       'حالت پاسخ: ${collection.answerMode == AnswerMode.checkbox ? 'باکس سؤال' : 'گزینه‌های انتخابی'}',
       ...collection.items
           .map((item) => '${item.visible ? '[نمایش]' : '[مخفی]'} ${item.text}'),
@@ -197,15 +199,16 @@ class _QuestionChecklistDemoPageState extends State<QuestionChecklistDemoPage> {
             child: SegmentedButton<int>(
               showSelectedIcon: false,
               segments: const [
-                ButtonSegment(value: 0, label: Text('سؤالات')),
-                ButtonSegment(value: 1, label: Text('چک‌لیست‌ها')),
-                ButtonSegment(value: 2, label: Text('ورود و خروج')),
+                ButtonSegment(value: 0, label: Text('چک لیست های غیر معاملاتی')),
+                ButtonSegment(value: 1, label: Text('چک لیست های معاملاتی')),
+                ButtonSegment(value: 2, label: Text('سوالات قبل از معامله')),
+                ButtonSegment(value: 3, label: Text('ورود و خروج')),
               ],
               selected: {_tab},
               onSelectionChanged: (value) => setState(() => _tab = value.first),
             ),
           ),
-          if (_tab != 2)
+          if (_tab != 3)
             Padding(
               padding: const EdgeInsets.all(12),
               child: SizedBox(
@@ -214,12 +217,12 @@ class _QuestionChecklistDemoPageState extends State<QuestionChecklistDemoPage> {
                   onPressed: _createCollection,
                   icon: const Icon(Icons.add),
                   label:
-                      Text(_tab == 0 ? 'ایجاد سؤالات جدید' : 'ایجاد چک‌لیست'),
+                      Text(_tab == 2 ? 'ایجاد سؤالات جدید' : 'ایجاد چک‌لیست'),
                 ),
               ),
             ),
           Expanded(
-            child: _tab == 2
+            child: _tab == 3
                 ? _buildImportExportTab()
                 : collections.isEmpty
                     ? const Center(
@@ -417,8 +420,11 @@ class _QuestionChecklistDemoPageState extends State<QuestionChecklistDemoPage> {
         content: TextField(
             controller: controller,
             autofocus: true,
-            maxLines: 3,
-            decoration: const InputDecoration(labelText: 'متن مورد')),
+            minLines: 2,
+            maxLines: 5,
+            keyboardType: TextInputType.multiline,
+            decoration: const InputDecoration(
+                labelText: 'موارد را وارد کن؛ هر خط یک مورد')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(dialogContext),
@@ -430,8 +436,17 @@ class _QuestionChecklistDemoPageState extends State<QuestionChecklistDemoPage> {
         ],
       ),
     );
-    if (value != null && value.isNotEmpty)
-      setState(() => collection.items.add(EntryItem(text: value)));
+    if (value != null) {
+      final lines = value
+          .split(RegExp(r'\r?\n'))
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toList();
+      if (lines.isNotEmpty) {
+        setState(() => collection.items.addAll(
+            lines.map((line) => EntryItem(text: line))));
+      }
+    }
   }
 
   Future<void> _confirmDeleteCollection(EntryCollection collection) async {
@@ -492,10 +507,14 @@ class _CollectionEditorDialogState extends State<CollectionEditorDialog> {
   }
 
   void _addItem() {
-    final text = _itemController.text.trim();
-    if (text.isEmpty) return;
+    final lines = _itemController.text
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    if (lines.isEmpty) return;
     setState(() {
-      _items.add(EntryItem(text: text));
+      _items.addAll(lines.map((line) => EntryItem(text: line)));
       _itemController.clear();
     });
   }
@@ -543,9 +562,11 @@ class _CollectionEditorDialogState extends State<CollectionEditorDialog> {
                   Expanded(
                       child: TextField(
                           controller: _itemController,
+                          minLines: 2,
+                          maxLines: 4,
+                          keyboardType: TextInputType.multiline,
                           decoration: const InputDecoration(
-                              hintText: 'متن مورد را وارد کن'),
-                          onSubmitted: (_) => _addItem())),
+                              hintText: 'هر مورد را در یک خط وارد کن'))),
                   IconButton(
                       onPressed: _addItem,
                       icon: const Icon(Icons.add_circle,
