@@ -1557,7 +1557,7 @@ class _NewTradePageState extends State<NewTradePage> {
     }
     if (!mounted) return;
     setState(() {
-      _noteFontSize = size.clamp(8.0, 32.0);
+      _noteFontSize = size.clamp(8.0, 32.0).toDouble();
       _customNoteFontPath = loadedPath;
     });
   }
