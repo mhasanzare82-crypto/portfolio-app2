@@ -152,6 +152,46 @@ class _NotesAppearanceSettingsPageState
           return ListView(
             padding: const EdgeInsets.all(12),
             children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text('قالب‌های آماده نوشته', textAlign: TextAlign.right,
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'برای نوشته جدید یک قالب به‌صورت تصادفی انتخاب می‌شود. می‌توانی قالب‌های سفارشی بسازی و آن‌ها را مدیریت کنی.',
+                      textAlign: TextAlign.right),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _saveCurrentAsTheme,
+                      icon: const Icon(Icons.add),
+                      label: const Text('ساخت قالب از رنگ و فونت فعلی')),
+                    ...NotesAppearanceSettings.allThemes.map((theme) => Card(
+                      color: theme.background,
+                      child: ListTile(
+                        title: Text(theme.name, textAlign: TextAlign.right,
+                          style: TextStyle(color: theme.foreground, fontFamily: theme.fontFamily,
+                            fontSize: theme.fontSize, fontWeight: FontWeight.bold)),
+                        subtitle: Text('پیش‌نمایش نوشته با این قالب', textAlign: TextAlign.right,
+                          style: TextStyle(color: theme.foreground, fontFamily: theme.fontFamily,
+                            fontSize: theme.fontSize)),
+                        trailing: NotesAppearanceSettings.customThemes.value.any((item) => item.id == theme.id)
+                          ? IconButton(
+                              tooltip: 'حذف قالب',
+                              icon: Icon(Icons.delete_outline, color: theme.foreground),
+                              onPressed: () async {
+                                await NotesAppearanceSettings.deleteCustomTheme(theme.id);
+                                if (mounted) setState(() {});
+                              })
+                          : Icon(Icons.check_circle_outline, color: theme.foreground),
+                      ),
+                    )),
+                  ],
+                ),
+              ),
+
               const Padding(
                 padding: EdgeInsets.all(12),
                 child: Text(
