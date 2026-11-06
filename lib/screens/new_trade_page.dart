@@ -231,7 +231,7 @@ class _NotesPageState extends State<TradeNotesPage> {
         final parts=item.split('|'); if(parts.length!=2)continue;
         final file=File(parts[1]); if(!await file.exists())continue;
         final bytes=await file.readAsBytes();
-        final loader=FontLoader(parts[0])..addFont(Future.value(ByteData.sublistView(bytes)));
+        final loader=ui.FontLoader(parts[0])..addFont(Future.value(ByteData.sublistView(bytes)));
         await loader.load();
       }
     } catch(e) { debugPrint('Custom font loading failed: $e'); }
@@ -338,7 +338,7 @@ class _NotesPageState extends State<TradeNotesPage> {
       final bytes=Uint8List.fromList(picked.files.single.bytes!); final family='CustomFont_${DateTime.now().millisecondsSinceEpoch}';
       final dir=Directory(p.join((await getApplicationDocumentsDirectory()).path,'custom_fonts')); if(!await dir.exists())await dir.create(recursive:true);
       final fontFile=File(p.join(dir.path,'$family${p.extension(picked.files.single.name)}')); await fontFile.writeAsBytes(bytes,flush:true);
-      final loader=FontLoader(family)..addFont(Future.value(ByteData.sublistView(bytes))); await loader.load();
+      final loader=ui.FontLoader(family)..addFont(Future.value(ByteData.sublistView(bytes))); await loader.load();
       final prefs=await SharedPreferences.getInstance(); final saved=prefs.getStringList('notes_custom_fonts_v1')??<String>[]; saved.add('$family|${fontFile.path}'); await prefs.setStringList('notes_custom_fonts_v1',saved);
       await NotesAppearanceSettings.setFonts(NotesAppearanceSettings.fonts.value.copyWith(appFontFamily:family,inputFontFamily:family));
       if(mounted)setState((){}); _message('فونت شخصی فعال شد.');
@@ -1181,55 +1181,78 @@ class _NotesPageState extends State<TradeNotesPage> {
 
   Widget _buildEditor() => Scaffold(
         appBar: AppBar(
-            title: const Text('یادداشت'),
-            leading: IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () {
-                  if (_recording) _toggleRecording();
-                  setState(() => _editing = false);
-                }),
-            actions: [
-              IconButton(
-                  onPressed: _saving ? null : _save,
-                  icon: const Icon(Icons.save_outlined),
-                  tooltip: 'ذخیره')
-            ]),
+          title: const Text('یادداشت'),
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () {
+              if (_recording) _toggleRecording();
+              setState(() => _editing = false);
+            },
+          ),
+          actions: [
+            IconButton(
+              onPressed: _saving ? null : _save,
+              icon: const Icon(Icons.save_outlined),
+              tooltip: 'ذخیره',
+            ),
+          ],
+        ),
         body: SafeArea(
-            child: Column(children: [
-          Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: TextField(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: TextField(
                   controller: _title,
                   textDirection: TextDirection.rtl,
                   style: TextStyle(
-                      fontFamily:
-                          NotesAppearanceSettings.fonts.value.inputFontFamily,
-                      fontSize:
-                          NotesAppearanceSettings.fonts.value.inputTextSize + 3,
-                      fontWeight: FontWeight.bold,
-                      color: NotesAppearanceSettings.color('inputText')),
+                    fontFamily:
+                        NotesAppearanceSettings.fonts.value.inputFontFamily,
+                    fontSize:
+                        NotesAppearanceSettings.fonts.value.inputTextSize + 3,
+                    fontWeight: FontWeight.bold,
+                    color: NotesAppearanceSettings.color('inputText'),
+                  ),
                   decoration: const InputDecoration(
-                      hintText: 'عنوان یادداشت', border: InputBorder.none))),
-          const Divider(height: 1),
-          Expanded(
-              child: SingleChildScrollView(
+                    hintText: 'عنوان یادداشت',
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: SingleChildScrollView(
                   controller: _editorScrollController,
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                        color: NotesAppearanceSettings.color('inputBackground'),
-                        border: Border.all(
-                            color:
-                                NotesAppearanceSettings.color('inputBorder')),
-                        borderRadius: BorderRadius.circular(12)),
+                      color:
+                          NotesAppearanceSettings.color('inputBackground'),
+                      border: Border.all(
+                        color: NotesAppearanceSettings.color('inputBorder'),
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                        IconButton(tooltip:'فونت و اندازه نوشته',onPressed:_editFontSizes,icon:const Icon(Icons.format_size)),
-                      ]))),
-        ])),
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        IconButton(
+                          tooltip: 'فونت و اندازه نوشته',
+                          onPressed: _editFontSizes,
+                          icon: const Icon(Icons.format_size),
+                        ),
+                        for (var i = 0; i < _draft.length; i++)
+                          _editorBlock(i),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       );
   @override
   Widget build(BuildContext context) {
