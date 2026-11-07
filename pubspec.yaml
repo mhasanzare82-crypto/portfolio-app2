@@ -18,9 +18,9 @@ dependencies:
   # شبکه و ارتباط با سرویس قیمت
   http: ^1.6.0
 
-  # بررسی نسخه و باز کردن لینک دانلود APK
+  # بررسی نسخه و نصب APK دانلودشده
   package_info_plus: ^8.3.0
-  url_launcher: ^6.3.2
+  open_filex: ^4.7.0
 
   # اعلان‌ها
   flutter_local_notifications: ^20.1.0
