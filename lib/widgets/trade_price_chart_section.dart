@@ -272,7 +272,7 @@ class _PriceLinePainter extends CustomPainter {
       chart.left + (t.millisecondsSinceEpoch - minTime) / (maxTime - minTime) * chart.width;
     double y(double p) => chart.bottom - (p - low) / (high - low) * chart.height;
 
-    final grid = Paint()..color = gridColor.withValues(alpha: 0.55)..strokeWidth = 0.7;
+    final grid = Paint()..color = gridColor.withOpacity(0.55)..strokeWidth = 0.7;
     for (var i = 0; i <= 4; i++) {
       final py = chart.top + chart.height * i / 4;
       canvas.drawLine(Offset(chart.left, py), Offset(chart.right, py), grid);
