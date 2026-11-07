@@ -118,6 +118,10 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   final TextEditingController _entryTitleController = TextEditingController();
   final TextEditingController _entryContentController = TextEditingController();
   String? _activeEntryType;
+  bool _showMistakes = true;
+  bool _showExperiences = true;
+  bool _showTradeNotes = true;
+  bool _showTradeImages = true;
   List<Map<String, dynamic>> _tradeNotes = [];
 
   late Trade _trade;
@@ -405,22 +409,35 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     );
   }
 
+  Widget _buildSectionHeader(String title, int count, bool visible,
+      ValueChanged<bool> onChanged) {
+    return Row(children: [
+      Expanded(
+        child: Text('$title (${numbers.formatInteger(count)})',
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+      ),
+      Checkbox(value: visible, onChanged: (value) => onChanged(value ?? false)),
+    ]);
+  }
+
   Widget _buildTradeNotesSection() {
     return Padding(
       padding: const EdgeInsets.only(top: 20, bottom: 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('یادداشت‌های این معامله (${_tradeNotes.length})',
-          textAlign: TextAlign.right,
-          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-        if (_tradeNotes.isEmpty)
-          const Padding(padding: EdgeInsets.all(12),
-            child: Text('هنوز یادداشتی برای این معامله ثبت نشده است.', textAlign: TextAlign.right)),
-        ..._tradeNotes.map((note) => Card(child: ListTile(
-          title: Text(note['title']?.toString() ?? '', textAlign: TextAlign.right),
-          subtitle: Text(note['content']?.toString() ?? '', textAlign: TextAlign.right,
-            maxLines: 4, overflow: TextOverflow.ellipsis),
-          trailing: Text(note['note_type']?.toString() ?? ''),
-        ))),
+        _buildSectionHeader('یادداشت‌های معامله', _tradeNotes.length,
+            _showTradeNotes, (value) => setState(() => _showTradeNotes = value)),
+        if (_showTradeNotes) ...[
+          if (_tradeNotes.isEmpty)
+            const Padding(padding: EdgeInsets.all(12),
+                child: Text('هنوز یادداشتی برای این معامله ثبت نشده است.', textAlign: TextAlign.right)),
+          ..._tradeNotes.map((note) => Card(child: ListTile(
+            title: Text(note['title']?.toString() ?? '', textAlign: TextAlign.right),
+            subtitle: Text(note['content']?.toString() ?? '', textAlign: TextAlign.right,
+                maxLines: 4, overflow: TextOverflow.ellipsis),
+            trailing: Text(note['note_type']?.toString() ?? ''),
+          ))),
+        ],
       ]),
     );
   }
@@ -428,27 +445,36 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   Widget _buildTopEntryActions() {
     final actions = [
       ('mistake', 'اشتباه جدید', Icons.error_outline),
-      ('photo', 'عکس جدید', Icons.add_photo_alternate_outlined),
       ('experience', 'تجربه جدید', Icons.lightbulb_outline),
       ('note', 'یادداشت جدید', Icons.note_add_outlined),
+      ('photo', 'عکس جدید', Icons.add_photo_alternate_outlined),
     ];
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Column(children: [
-        Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center,
-          children: actions.map((action) => OutlinedButton.icon(
-            onPressed: () => setState(() {
-              final next = action.$1;
-              _activeEntryType = _activeEntryType == next ? null : next;
-              _entryTitleController.clear();
-              _entryContentController.clear();
-            }),
-            icon: Icon(action.$3),
-            label: Text(action.$2),
-            style: _activeEntryType == action.$1
-              ? OutlinedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primaryContainer)
-              : null,
-          )).toList()),
+        Row(
+          children: actions.map((action) => Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: OutlinedButton(
+                onPressed: () => setState(() {
+                  final next = action.$1;
+                  _activeEntryType = _activeEntryType == next ? null : next;
+                  _entryTitleController.clear();
+                  _entryContentController.clear();
+                }),
+                style: _activeEntryType == action.$1
+                    ? OutlinedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primaryContainer)
+                    : null,
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(action.$3, size: 18),
+                  const SizedBox(height: 3),
+                  FittedBox(fit: BoxFit.scaleDown,
+                      child: Text(action.$2, maxLines: 1, softWrap: false)),
+                ]),
+              ),
+            ),
+          )).toList(),
         ),
         _buildEntryComposer(),
       ]),
@@ -493,28 +519,32 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     return Padding(
       padding: const EdgeInsets.only(top: 20, bottom: 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('عکس‌های معامله (${_trade.imagePaths.length})', textAlign: TextAlign.right,
-          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-        if (_trade.imagePaths.isEmpty)
-          const Padding(padding: EdgeInsets.all(12), child: Text('هنوز عکسی اضافه نشده است.', textAlign: TextAlign.right)),
-        ..._trade.imagePaths.asMap().entries.map((entry) => Padding(
-          padding: const EdgeInsets.only(top: 10),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            GestureDetector(
-              onTap: () => _openTradeImage(entry.value, entry.key),
-              child: Image.file(File(entry.value), width: double.infinity,
-                fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined)),
-            ),
-            Wrap(alignment: WrapAlignment.end, children: [
-              IconButton(tooltip: 'نقاشی / ویرایش', icon: const Icon(Icons.draw),
-                onPressed: () => _openTradeImage(entry.value, entry.key)),
-              IconButton(tooltip: 'ذخیره در گالری', icon: const Icon(Icons.download),
-                onPressed: () => _saveTradeImageToGallery(entry.value)),
-              IconButton(tooltip: 'حذف عکس', icon: const Icon(Icons.delete_outline),
-                onPressed: () => _deleteTradeImage(entry.key)),
+        _buildSectionHeader('عکس‌های معامله', _trade.imagePaths.length,
+            _showTradeImages, (value) => setState(() => _showTradeImages = value)),
+        if (_showTradeImages) ...[
+          if (_trade.imagePaths.isEmpty)
+            const Padding(padding: EdgeInsets.all(12),
+                child: Text('هنوز عکسی اضافه نشده است.', textAlign: TextAlign.right)),
+          ..._trade.imagePaths.asMap().entries.map((entry) => Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              GestureDetector(
+                onTap: () => _openTradeImage(entry.value, entry.key),
+                child: Image.file(File(entry.value), width: double.infinity,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined)),
+              ),
+              Wrap(alignment: WrapAlignment.end, children: [
+                IconButton(tooltip: 'نقاشی / ویرایش', icon: const Icon(Icons.draw),
+                    onPressed: () => _openTradeImage(entry.value, entry.key)),
+                IconButton(tooltip: 'ذخیره در گالری', icon: const Icon(Icons.download),
+                    onPressed: () => _saveTradeImageToGallery(entry.value)),
+                IconButton(tooltip: 'حذف عکس', icon: const Icon(Icons.delete_outline),
+                    onPressed: () => _deleteTradeImage(entry.key)),
+              ]),
             ]),
-          ]),
-        )),
+          )),
+        ],
       ]),
     );
   }
@@ -522,13 +552,21 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   Widget _buildMistakesSection() => Padding(
     padding: const EdgeInsets.only(top: 20, bottom: 12),
     child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text('اشتباه‌های معامله (${_mistakes.length})', textAlign: TextAlign.right, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-      if (_mistakes.isEmpty) const Text('هنوز اشتباهی ثبت نشده است.', textAlign: TextAlign.right),
-      ..._mistakes.asMap().entries.map((e) => Card(child: ListTile(
-        title: Text(e.value['title'] ?? '', textAlign: TextAlign.right),
-        subtitle: Text(e.value['description'] ?? '', textAlign: TextAlign.right),
-        trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async { setState(() => _mistakes.removeAt(e.key)); await _saveMistakes(); }),
-      ))),
+      _buildSectionHeader('اشتباهات معامله', _mistakes.length, _showMistakes,
+          (value) => setState(() => _showMistakes = value)),
+      if (_showMistakes) ...[
+        if (_mistakes.isEmpty)
+          const Text('هنوز اشتباهی ثبت نشده است.', textAlign: TextAlign.right),
+        ..._mistakes.asMap().entries.map((e) => Card(child: ListTile(
+          title: Text(e.value['title'] ?? '', textAlign: TextAlign.right),
+          subtitle: Text(e.value['description'] ?? '', textAlign: TextAlign.right),
+          trailing: IconButton(icon: const Icon(Icons.delete_outline),
+              onPressed: () async {
+                setState(() => _mistakes.removeAt(e.key));
+                await _saveMistakes();
+              }),
+        ))),
+      ],
     ]),
   );
 
@@ -1150,58 +1188,26 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   }
 
   Widget _buildExperiencesSection() {
-    if (_loadingExperiences) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(
-          vertical: 20,
-        ),
-        child: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    if (_experiences.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
     return Padding(
-      padding: const EdgeInsets.only(
-        top: 20,
-        bottom: 10,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'تجربه‌های معامله',
-                  textAlign: TextAlign.right,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              Text(
-                numbers.formatInteger(_experiences.length),
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.dragHelper,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(
-            height: 10,
-          ),
-          ..._experiences.map(
-            _buildExperienceTile,
-          ),
+      padding: const EdgeInsets.only(top: 20, bottom: 10),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        _buildSectionHeader('تجربه‌های معامله', _experiences.length,
+            _showExperiences, (value) => setState(() => _showExperiences = value)),
+        if (_showExperiences) ...[
+          if (_loadingExperiences)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_experiences.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: Text('هنوز تجربه‌ای ثبت نشده است.', textAlign: TextAlign.right),
+            )
+          else
+            ..._experiences.map(_buildExperienceTile),
         ],
-      ),
+      ]),
     );
   }
 
@@ -2869,10 +2875,10 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                           ),
                           _buildPreTradeSection(),
                           _buildCustomFieldsSection(),
-                          _buildExperiencesSection(),
-                          _buildTradeImagesSection(),
                           _buildMistakesSection(),
+                          _buildExperiencesSection(),
                           _buildTradeNotesSection(),
+                          _buildTradeImagesSection(),
                         ],
                       ),
                       onReorder: (
@@ -2942,46 +2948,6 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (_trade.imagePaths.isNotEmpty) ...[
-                      const SizedBox(
-                        height: 10,
-                      ),
-                      SizedBox(
-                        height: 90,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _trade.imagePaths.length,
-                          separatorBuilder: (
-                            context,
-                            index,
-                          ) =>
-                              const SizedBox(
-                            width: 8,
-                          ),
-                          itemBuilder: (
-                            context,
-                            index,
-                          ) {
-                            final imagePath = _trade.imagePaths[index];
-                            return GestureDetector(
-                              onLongPress: () => _replaceTradeImage(index),
-                              onTap: () => _openTradeImage(imagePath, index),
-                              child: Container(
-                                width: 120,
-                                height: 90,
-                                alignment: Alignment.center,
-                                child: Image.file(
-                                  File(imagePath),
-                                  width: 120,
-                                  height: 90,
-                                  fit: BoxFit.contain,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
                     const SizedBox(
                       height: 8,
                     ),
