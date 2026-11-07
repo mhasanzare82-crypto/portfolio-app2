@@ -154,7 +154,7 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
           'created_at': DateTime.now().toIso8601String(),
         });
       }
-      await _loadImages();
+      await _loadTopics();
       _showMessage('${selected.length} عکس به گالری اضافه شد.');
     } catch (error) {
       _showMessage('افزودن عکس انجام نشد: $error');
@@ -236,13 +236,13 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
         topicId: _selectedTopicId!,
       ),
     ));
-    if (mounted) await _loadImages();
+    if (mounted) await _loadTopics();
   }
 
   Future<bool> _handleBack() async {
     if (_selectedTopicId != null) {
       setState(() => _selectedTopicId = null);
-      await _loadImages();
+      await _loadTopics();
       return false;
     }
     return true;
