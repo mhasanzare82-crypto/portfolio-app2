@@ -393,7 +393,7 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '\${count} عکس',
+                    '${count} عکس',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
@@ -422,7 +422,7 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
               const Icon(Icons.photo_outlined, size: 58, color: Colors.grey),
               const SizedBox(height: 12),
               Text(
-                'مجموعه «\${selectedTopic.first['topic_name']}» خالی است.',
+                'مجموعه «${selectedTopic.first['topic_name']}» خالی است.',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
