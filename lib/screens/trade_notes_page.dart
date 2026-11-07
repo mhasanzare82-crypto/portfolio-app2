@@ -1457,7 +1457,7 @@ class _NewTradePageState extends State<NewTradePage> {
             _buildSection(
               title: titles[category]!,
               icon: icons[category]!,
-                children: _buildPreTradeCollections(
+              children: _buildPreTradeCollections(
                 sections[category]!,
                 category,
               ),
