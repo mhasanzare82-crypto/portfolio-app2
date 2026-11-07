@@ -351,7 +351,10 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   Future<void> _openTradeImage(String path, int index) async {
     await showDialog<void>(context: context, builder: (ctx) => Dialog(
       insetPadding: const EdgeInsets.all(8),
-      child: Column(children: [
+      child: SizedBox(
+        height: MediaQuery.of(ctx).size.height * 0.82,
+        width: MediaQuery.of(ctx).size.width,
+        child: Column(children: [
         Expanded(child: InteractiveViewer(child: SizedBox(width: double.infinity, child: Image.file(File(path), fit: BoxFit.contain)))),
         Wrap(alignment: WrapAlignment.center, children: [
           IconButton(tooltip: 'نقاشی', icon: const Icon(Icons.draw), onPressed: () async {
@@ -368,7 +371,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
           IconButton(tooltip: 'حذف عکس', icon: const Icon(Icons.delete_outline), onPressed: () async { await _deleteTradeImage(index); if (ctx.mounted) Navigator.pop(ctx); }),
           IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
         ]),
-      ]),
+      ])),
     ));
   }
 
@@ -2778,7 +2781,6 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                             ),
                           ),
                         ),
-                      ],
                         const SizedBox(width: 8),
                         Expanded(
                           child: FilledButton.icon(
