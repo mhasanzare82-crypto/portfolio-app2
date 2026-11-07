@@ -161,6 +161,8 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     'pnl',
     'roiPercent',
     'roiDollar',
+    'marginEffect',
+    'riskToStop',
     'maxDrawdown',
     'maxDrawdownDollar',
     'drawdownMargin',
@@ -1498,6 +1500,26 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
           ),
         );
 
+      case 'marginEffect':
+        return _parameterRow(
+          'اثر روی مارجین',
+          '${_formatNumber(_pnl)} USD  |  ${_formatNumber(pnlPercent)}%',
+          valueColor: _valueColor(
+            key,
+            _pnl,
+          ),
+        );
+
+      case 'riskToStop':
+        final riskPercent = _trade.marginAmount > 0
+            ? (riskValue / _trade.marginAmount) * 100
+            : 0.0;
+        return _parameterRow(
+          'ریسک تا حد ضرر',
+          '${_formatNumber(riskValue)} USD  |  ${_formatNumber(riskPercent)}%',
+          valueColor: riskValue > 0 ? AppColors.loss : null,
+        );
+
       case 'maxDrawdown':
         return _parameterRow(
           'بیشترین افت سرمایه',
@@ -1586,15 +1608,12 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
         );
 
       case 'duration':
-        if (_trade.tradeStatus != TradeStatus.closed) {
-          return const SizedBox.shrink();
-        }
-
+        final durationSeconds = _trade.tradeStatus == TradeStatus.closed
+            ? _trade.durationSeconds
+            : DateTime.now().difference(_trade.entryTime).inSeconds;
         return _parameterRow(
           'مدت معامله',
-          _formatDuration(
-            _trade.durationSeconds,
-          ),
+          _formatDuration(durationSeconds < 0 ? 0 : durationSeconds),
         );
 
       case 'setup':
