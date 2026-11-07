@@ -28,7 +28,7 @@ class _TradePriceChartSectionState extends State<TradePriceChartSection> {
     '1 دقیقه': '1min', '5 دقیقه': '5min', '15 دقیقه': '15min',
     '30 دقیقه': '30min', '1 ساعت': '1hr', '4 ساعت': '4hr',
   };
-  String frame = '5 دقیقه';
+  String frame = '1 دقیقه';
   late DateTime startAt;
   late DateTime endAt;
   bool loading = false;
@@ -40,7 +40,7 @@ class _TradePriceChartSectionState extends State<TradePriceChartSection> {
   void initState() {
     super.initState();
     endAt = DateTime.now();
-    startAt = endAt.subtract(const Duration(hours: 24));
+    startAt = endAt.subtract(const Duration(hours: 1));
   }
 
   String _pair(String symbol) {
@@ -117,39 +117,36 @@ class _TradePriceChartSectionState extends State<TradePriceChartSection> {
     }
 
     setState(() { loading = true; error = null; points = []; });
-    WebSocket? socket;
-    StreamSubscription? subscription;
-    Timer? timeout, quietTimer;
     final candles = <_TradeCandle>[];
-    final completed = Completer<void>();
-    void finish() { if (!completed.isCompleted) completed.complete(); }
 
     try {
-      socket = await WebSocket.connect('wss://lbkperpws.lbank.com/ws').timeout(const Duration(seconds: 12));
-      subscription = socket.listen((event) {
-        try {
-          final decoded = jsonDecode(event.toString());
-          if (decoded is Map && decoded['action'] == 'ping') {
-            socket?.add(jsonEncode({'action': 'pong', 'pong': decoded['ping']}));
-            return;
-          }
-          _parse(decoded, candles);
-          if (candles.isNotEmpty) {
-            quietTimer?.cancel();
-            quietTimer = Timer(const Duration(milliseconds: 900), finish);
-          }
-        } catch (_) {}
-      }, onError: (_) => finish(), onDone: finish);
-
-      socket.add(jsonEncode({
-        'action': 'request', 'request': 'kbar', 'kbar': slot,
-        'pair': _pair(widget.symbol),
-        'start': (startAt.toUtc().millisecondsSinceEpoch ~/ 1000).toString(),
-        'end': (endAt.toUtc().millisecondsSinceEpoch ~/ 1000).toString(),
+      // LBank public REST market-data endpoint; no API key is required.
+      // The REST kline endpoint expects the reference time in Unix seconds.
+      final uri = Uri.https('api.lbkex.com', '/v2/kline.do', {
+        'symbol': _pair(widget.symbol),
+        'type': slot,
         'size': requested.toString(),
-      }));
-      timeout = Timer(const Duration(seconds: 15), finish);
-      await completed.future;
+        'time': (endAt.toUtc().millisecondsSinceEpoch ~/ 1000).toString(),
+      });
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 12);
+      try {
+        final request = await client.getUrl(uri).timeout(const Duration(seconds: 12));
+        request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+        final response = await request.close().timeout(const Duration(seconds: 15));
+        final body = await response.transform(utf8.decoder).join().timeout(const Duration(seconds: 15));
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          throw HttpException('HTTP ${response.statusCode}: $body', uri: uri);
+        }
+        final decoded = jsonDecode(body);
+        if (decoded is Map &&
+            (decoded['result'] == false || decoded['result'] == 'false' ||
+             (decoded['error_code'] != null && decoded['error_code'].toString() != '0'))) {
+          throw Exception(decoded['msg'] ?? decoded['error_code'] ?? 'پاسخ نامعتبر از LBank');
+        }
+        _parse(decoded, candles);
+      } finally {
+        client.close(force: true);
+      }
 
       final from = startAt.millisecondsSinceEpoch;
       final to = endAt.millisecondsSinceEpoch;
@@ -169,10 +166,6 @@ class _TradePriceChartSectionState extends State<TradePriceChartSection> {
     } catch (e) {
       if (mounted) setState(() => error = 'دریافت قیمت از LBank ناموفق بود: $e');
     } finally {
-      timeout?.cancel();
-      quietTimer?.cancel();
-      await subscription?.cancel();
-      await socket?.close();
       if (mounted) setState(() => loading = false);
     }
   }
