@@ -494,6 +494,8 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
     );
   }
 
+}
+
 class _GalleryImageViewer extends StatefulWidget {
   final List<Map<String, dynamic>> images;
   final int initialIndex;
