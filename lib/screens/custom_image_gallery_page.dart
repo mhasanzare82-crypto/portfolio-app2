@@ -446,7 +446,7 @@ class _GalleryImageViewerState extends State<_GalleryImageViewer> {
       await outputDir.create(recursive: true);
       final outputPath = p.join(
         outputDir.path,
-        'edited_\${DateTime.now().microsecondsSinceEpoch}.png',
+        'edited_${DateTime.now().microsecondsSinceEpoch}.png',
       );
       await File(outputPath).writeAsBytes(byteData.buffer.asUint8List());
 
@@ -465,7 +465,7 @@ class _GalleryImageViewerState extends State<_GalleryImageViewer> {
         _drawingMode = false;
       });
     } catch (error) {
-      _showMessage('ذخیره تصویر انجام نشد: \$error');
+      _showMessage('ذخیره تصویر انجام نشد: $error');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -491,7 +491,7 @@ class _GalleryImageViewerState extends State<_GalleryImageViewer> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: Text('\${_currentIndex + 1} از \${widget.images.length}'),
+        title: Text('${_currentIndex + 1} از ${widget.images.length}'),
         actions: [
           IconButton(
             tooltip: 'نقاشی روی عکس',
