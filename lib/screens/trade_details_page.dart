@@ -329,6 +329,8 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     final values = Map<int, String>.from(_preTradeValues);
     for (final item in chosen) { final id = int.tryParse(item['item_id'].toString()); if (id != null) values.putIfAbsent(id, () => ''); }
     await _preTradeRepository.saveTradeValues(_trade.tradeId, values);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('trade_selected_checklists_${_trade.tradeId}', result.map((id) => id.toString()).toList());
     if (mounted) setState(() { _preTradeItems = chosen; _preTradeValues = values; });
   }
 
@@ -538,6 +540,17 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
       final values = await _preTradeRepository.getTradeValues(
         _trade.tradeId,
       );
+      final prefs = await SharedPreferences.getInstance();
+      final selectedIds = prefs.getStringList('trade_selected_checklists_${_trade.tradeId}') ?? const <String>[];
+      if (selectedIds.isNotEmpty) {
+        final allItems = await _preTradeRepository.getAllItems();
+        for (final item in allItems) {
+          if (selectedIds.contains(item['item_id']?.toString()) &&
+              !items.any((existing) => existing['item_id']?.toString() == item['item_id']?.toString())) {
+            items.add(item);
+          }
+        }
+      }
 
       if (!mounted) {
         return;
