@@ -356,55 +356,93 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   Widget _buildEntryComposer() {
     final type = _activeEntryType;
     if (type == null) return const SizedBox.shrink();
+
     if (type == 'photo') {
       return Card(
-        margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            const Text('افزودن عکس به معامله', textAlign: TextAlign.right,
-              style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: _saving ? null : () async {
-                await _addTradeImage();
-                if (mounted) setState(() => _activeEntryType = null);
-              },
-              icon: const Icon(Icons.photo_library_outlined),
-              label: const Text('انتخاب عکس از گالری'),
+        margin: EdgeInsets.zero,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('افزودن عکس به معامله',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: _saving
+                      ? null
+                      : () async {
+                          await _addTradeImage();
+                          if (mounted) setState(() => _activeEntryType = null);
+                        },
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const Text('انتخاب عکس از گالری'),
+                ),
+              ],
             ),
-          ]),
+          ),
         ),
       );
     }
-    final label = type == 'mistake' ? 'اشتباه جدید' :
-      type == 'experience' ? 'تجربه جدید' : 'یادداشت جدید';
+
+    final label = type == 'mistake'
+        ? 'اشتباه جدید'
+        : type == 'experience'
+            ? 'تجربه جدید'
+            : 'یادداشت جدید';
+
     return Card(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(label, textAlign: TextAlign.right,
-            style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          TextField(controller: _entryTitleController,
-            decoration: const InputDecoration(labelText: 'عنوان', border: OutlineInputBorder())),
-          const SizedBox(height: 10),
-          TextField(controller: _entryContentController, minLines: 3, maxLines: 7,
-            decoration: const InputDecoration(labelText: 'متن / توضیحات', border: OutlineInputBorder())),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: FilledButton.icon(
-              onPressed: _saving ? null : _saveTradeEntry,
-              icon: const Icon(Icons.save_outlined), label: const Text('ذخیره'))),
-            const SizedBox(width: 8),
-            TextButton(onPressed: () => setState(() {
-              _activeEntryType = null;
-              _entryTitleController.clear();
-              _entryContentController.clear();
-            }), child: const Text('انصراف')),
-          ]),
-        ]),
+      margin: EdgeInsets.zero,
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(label,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _entryTitleController,
+                decoration: const InputDecoration(
+                    labelText: 'عنوان', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _entryContentController,
+                minLines: 3,
+                maxLines: 7,
+                decoration: const InputDecoration(
+                    labelText: 'متن / توضیحات',
+                    border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _saving ? null : _saveTradeEntry,
+                      icon: const Icon(Icons.save_outlined),
+                      label: const Text('ذخیره'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      _activeEntryType = null;
+                      _entryTitleController.clear();
+                      _entryContentController.clear();
+                    }),
+                    child: const Text('انصراف'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -444,40 +482,75 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
 
   Widget _buildTopEntryActions() {
     final actions = [
-      ('mistake', 'اشتباه جدید', Icons.error_outline),
-      ('experience', 'تجربه جدید', Icons.lightbulb_outline),
-      ('note', 'یادداشت جدید', Icons.note_add_outlined),
-      ('photo', 'عکس جدید', Icons.add_photo_alternate_outlined),
+      ('mistake', 'اشتباه جدید'),
+      ('experience', 'تجربه جدید'),
+      ('note', 'یادداشت جدید'),
+      ('photo', 'عکس جدید'),
     ];
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Column(children: [
+
+    void activate(String type) {
+      setState(() {
+        _activeEntryType = _activeEntryType == type ? null : type;
+        _entryTitleController.clear();
+        _entryContentController.clear();
+      });
+    }
+
+    return Column(
+      children: [
         Row(
-          children: actions.map((action) => Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: OutlinedButton(
-                onPressed: () => setState(() {
-                  final next = action.$1;
-                  _activeEntryType = _activeEntryType == next ? null : next;
-                  _entryTitleController.clear();
-                  _entryContentController.clear();
-                }),
-                style: _activeEntryType == action.$1
-                    ? OutlinedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primaryContainer)
-                    : null,
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(action.$3, size: 18),
-                  const SizedBox(height: 3),
-                  FittedBox(fit: BoxFit.scaleDown,
-                      child: Text(action.$2, maxLines: 1, softWrap: false)),
-                ]),
+          children: [
+            ...actions.map((action) => Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: OutlinedButton(
+                      onPressed: () => activate(action.$1),
+                      style: _activeEntryType == action.$1
+                          ? OutlinedButton.styleFrom(
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.primaryContainer)
+                          : null,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(action.$2, maxLines: 1, softWrap: false),
+                      ),
+                    ),
+                  ),
+                )),
+            SizedBox(
+              width: 42,
+              child: PopupMenuButton<String>(
+                tooltip: 'افزودن مورد',
+                padding: EdgeInsets.zero,
+                onSelected: activate,
+                itemBuilder: (context) => actions
+                    .map((action) => PopupMenuItem<String>(
+                          value: action.$1,
+                          child: Text(action.$2),
+                        ))
+                    .toList(),
+                child: Container(
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                        color: Theme.of(context).colorScheme.outline),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text('+',
+                      style: TextStyle(fontSize: 24, height: 1)),
+                ),
               ),
             ),
-          )).toList(),
+          ],
         ),
-        _buildEntryComposer(),
-      ]),
+        if (_activeEntryType != null)
+          SizedBox(
+            width: double.infinity,
+            height: 220,
+            child: _buildEntryComposer(),
+          ),
+      ],
     );
   }
 
@@ -1627,41 +1700,97 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     Color? valueColor,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        vertical: 7,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(7),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: Text(
-              title,
-              textAlign: TextAlign.right,
-              textDirection: TextDirection.rtl,
-              style: const TextStyle(
-                fontSize: 14,
-              ),
+          Text(
+            title,
+            textAlign: TextAlign.right,
+            textDirection: TextDirection.rtl,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(
-            width: 20,
-          ),
-          Expanded(
-            flex: 2,
-            child: Directionality(
-              textDirection: TextDirection.ltr,
-              child: Text(
-                value,
-                textAlign: TextAlign.left,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: valueColor,
-                ),
+          const SizedBox(height: 5),
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Text(
+              value,
+              textAlign: TextAlign.left,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: valueColor,
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDraggableParameter(
+    String key, {
+    required double currentPrice,
+    required double pnlPercent,
+    required double rr,
+    required double riskValue,
+    required double rewardValue,
+    required double priceChangePercent,
+    required double liveRiskReward,
+    required double displayedDrawdown,
+    required double displayedDrawdownDollar,
+    required double displayedDrawdownMargin,
+  }) {
+    Widget parameter() => _buildParameter(
+          key,
+          currentPrice: currentPrice,
+          pnlPercent: pnlPercent,
+          rr: rr,
+          riskValue: riskValue,
+          rewardValue: rewardValue,
+          priceChangePercent: priceChangePercent,
+          liveRiskReward: liveRiskReward,
+          displayedDrawdown: displayedDrawdown,
+          displayedDrawdownDollar: displayedDrawdownDollar,
+          displayedDrawdownMargin: displayedDrawdownMargin,
+        );
+
+    return DragTarget<String>(
+      onWillAccept: (draggedKey) => draggedKey != null && draggedKey != key,
+      onAccept: (draggedKey) {
+        final oldIndex = _parameterOrder.indexOf(draggedKey);
+        final newIndex = _parameterOrder.indexOf(key);
+        if (oldIndex < 0 || newIndex < 0 || oldIndex == newIndex) return;
+        setState(() {
+          final moved = _parameterOrder.removeAt(oldIndex);
+          _parameterOrder.insert(newIndex, moved);
+        });
+        _saveParameterOrder();
+      },
+      builder: (context, candidateData, rejectedData) => Card(
+        margin: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
+        color: candidateData.isNotEmpty
+            ? Theme.of(context).colorScheme.primaryContainer
+            : null,
+        child: LongPressDraggable<String>(
+          data: key,
+          feedback: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(width: 112, child: parameter()),
+          ),
+          childWhenDragging: Opacity(opacity: 0.25, child: parameter()),
+          child: parameter(),
+        ),
       ),
     );
   }
@@ -2857,83 +2986,63 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                   ? const Center(
                       child: CircularProgressIndicator(),
                     )
-                  : ReorderableListView.builder(
-                      padding: const EdgeInsets.fromLTRB(
-                        16,
-                        8,
-                        16,
-                        20,
-                      ),
-                      itemCount: _parameterOrder.length,
-                      footer: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          TradePriceChartSection(
-                            symbol: _trade.assetSymbol,
-                            entryPrice: _trade.entryPrice ?? 0,
-                          ),
-                          _buildPreTradeSection(),
-                          _buildCustomFieldsSection(),
-                          _buildMistakesSection(),
-                          _buildExperiencesSection(),
-                          _buildTradeNotesSection(),
-                          _buildTradeImagesSection(),
-                        ],
-                      ),
-                      onReorder: (
-                        oldIndex,
-                        newIndex,
-                      ) async {
-                        if (newIndex > oldIndex) {
-                          newIndex--;
-                        }
-
-                        final item = _parameterOrder.removeAt(
-                          oldIndex,
-                        );
-
-                        _parameterOrder.insert(
-                          newIndex,
-                          item,
-                        );
-
-                        setState(() {});
-
-                        await _saveParameterOrder();
-                      },
-                      itemBuilder: (
-                        context,
-                        index,
-                      ) {
-                        final key = _parameterOrder[index];
-
-                        return Container(
-                          key: ValueKey(
-                            key,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(
-                                color: AppColors.parameterDivider,
-                              ),
+                  : CustomScrollView(
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
+                          sliver: SliverGrid(
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 7,
+                              mainAxisSpacing: 7,
+                              mainAxisExtent: 94,
+                            ),
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                final key = _parameterOrder[index];
+                                return _buildDraggableParameter(
+                                  key,
+                                  currentPrice: currentPrice,
+                                  pnlPercent: pnlPercent,
+                                  rr: rr,
+                                  riskValue: riskValue,
+                                  rewardValue: rewardValue,
+                                  priceChangePercent: priceChangePercent,
+                                  liveRiskReward: liveRiskReward,
+                                  displayedDrawdown: displayedDrawdown,
+                                  displayedDrawdownDollar:
+                                      displayedDrawdownDollar,
+                                  displayedDrawdownMargin:
+                                      displayedDrawdownMargin,
+                                );
+                              },
+                              childCount: _parameterOrder.length,
                             ),
                           ),
-                          child: _buildParameter(
-                            key,
-                            currentPrice: currentPrice,
-                            pnlPercent: pnlPercent,
-                            rr: rr,
-                            riskValue: riskValue,
-                            rewardValue: rewardValue,
-                            priceChangePercent: priceChangePercent,
-                            liveRiskReward: liveRiskReward,
-                            displayedDrawdown: displayedDrawdown,
-                            displayedDrawdownDollar: displayedDrawdownDollar,
-                            displayedDrawdownMargin: displayedDrawdownMargin,
+                        ),
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                          sliver: SliverToBoxAdapter(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                TradePriceChartSection(
+                                  symbol: _trade.assetSymbol,
+                                  entryPrice: _trade.entryPrice ?? 0,
+                                ),
+                                _buildPreTradeSection(),
+                                _buildCustomFieldsSection(),
+                                _buildMistakesSection(),
+                                _buildExperiencesSection(),
+                                _buildTradeNotesSection(),
+                                _buildTradeImagesSection(),
+                              ],
+                            ),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      ],
+                    )
             ),
             SafeArea(
               top: false,
