@@ -39,8 +39,15 @@ class ApkUpdateService {
       if (remoteCode is! int ||
           remoteName is! String ||
           apkUrl is! String ||
-          remoteCode <= 0 ||
-          !apkUrl.startsWith('https://')) return;
+          remoteCode <= 0) return;
+
+      final parsedApkUrl = Uri.tryParse(apkUrl);
+      if (parsedApkUrl == null ||
+          parsedApkUrl.scheme != 'https' ||
+          parsedApkUrl.host != 'github.com' ||
+          !parsedApkUrl.path.startsWith(
+            '/mhasanzare82-crypto/portfolio-app2/releases/',
+          )) return;
 
       final current = await PackageInfo.fromPlatform();
       final currentCode = int.tryParse(current.buildNumber) ?? 0;
@@ -84,6 +91,7 @@ class ApkUpdateService {
     String apkUrl,
     String versionName,
   ) async {
+    var progressDialogOpen = true;
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -112,7 +120,10 @@ class ApkUpdateService {
       );
       await apkFile.writeAsBytes(response.bodyBytes, flush: true);
 
-      if (context.mounted) Navigator.of(context).pop();
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        progressDialogOpen = false;
+      }
 
       final result = await OpenFilex.open(
         apkFile.path,
@@ -130,7 +141,7 @@ class ApkUpdateService {
       }
     } catch (error) {
       if (context.mounted) {
-        Navigator.of(context).pop();
+        if (progressDialogOpen) Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('به‌روزرسانی انجام نشد: ' + error.toString())),
         );
