@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:saver_gallery/saver_gallery.dart';
 import 'package:shamsi_date/shamsi_date.dart';
 
 import '../calculators/pnl_calculator.dart';
@@ -124,6 +125,8 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   Map<int, String> _preTradeValues = {};
 
   List<Experience> _experiences = [];
+  List<Map<String, String>> _mistakes = [];
+  static const String _mistakesKeyPrefix = 'trade_mistakes_v1_';
 
   static const String _orderPreferenceKey = 'trade_details_parameter_order';
 
@@ -193,6 +196,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     _loadPreTradeValues();
     _loadParameterOrder();
     _loadExperiences();
+    _loadMistakes();
   }
 
   Future<void> _loadExperiences() async {
@@ -226,6 +230,116 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
         ),
       );
     }
+  }
+
+
+  Future<void> _loadMistakes() async {
+    final prefs = await SharedPreferences.getInstance();
+    try {
+      final raw = prefs.getString('trade_mistakes_v1_${_trade.tradeId}');
+      if (raw != null && mounted) setState(() => _mistakes = (jsonDecode(raw) as List).map((e) => Map<String, String>.from(e as Map)).toList());
+    } catch (_) {}
+  }
+
+  Future<void> _saveMistakes() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('trade_mistakes_v1_${_trade.tradeId}', jsonEncode(_mistakes));
+  }
+
+  Future<void> _newMistake() async {
+    final title = TextEditingController();
+    final description = TextEditingController();
+    final result = await showDialog<Map<String, String>>(context: context, builder: (ctx) =>
+      Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
+        title: const Text('اشتباه جدید'),
+        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: title, decoration: const InputDecoration(labelText: 'عنوان اشتباه')),
+          TextField(controller: description, minLines: 3, maxLines: 6, decoration: const InputDecoration(labelText: 'شرح اشتباه')),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+          FilledButton(onPressed: () { if (title.text.trim().isEmpty && description.text.trim().isEmpty) return; Navigator.pop(ctx, {'title': title.text.trim(), 'description': description.text.trim()}); }, child: const Text('ثبت')),
+        ],
+      )));
+    title.dispose(); description.dispose();
+    if (result == null) return;
+    setState(() => _mistakes.insert(0, result));
+    await _saveMistakes();
+  }
+
+  Widget _buildMistakesSection() => Padding(
+    padding: const EdgeInsets.only(top: 20, bottom: 12),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text('اشتباه‌های معامله (${_mistakes.length})', textAlign: TextAlign.right, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+      if (_mistakes.isEmpty) const Text('هنوز اشتباهی ثبت نشده است.', textAlign: TextAlign.right),
+      ..._mistakes.asMap().entries.map((e) => Card(child: ListTile(
+        title: Text(e.value['title'] ?? '', textAlign: TextAlign.right),
+        subtitle: Text(e.value['description'] ?? '', textAlign: TextAlign.right),
+        trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async { setState(() => _mistakes.removeAt(e.key)); await _saveMistakes(); }),
+      ))),
+    ]),
+  );
+
+  Future<void> _chooseTradeChecklist() async {
+    final all = await _preTradeRepository.getAllItems();
+    if (!mounted) return;
+    final selected = <int>{..._preTradeItems.map((e) => int.tryParse(e['item_id'].toString())).whereType<int>()};
+    final result = await showDialog<Set<int>>(context: context, builder: (ctx) =>
+      StatefulBuilder(builder: (ctx, refresh) => Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
+        title: const Text('انتخاب چک‌لیست‌ها'),
+        content: SizedBox(width: double.maxFinite, height: 400, child: ListView(children: all.map((item) {
+          final id = int.tryParse(item['item_id'].toString()); if (id == null) return const SizedBox.shrink();
+          return CheckboxListTile(value: selected.contains(id), title: Text(item['item_title']?.toString() ?? '', textAlign: TextAlign.right), subtitle: Text(item['category']?.toString() ?? ''),
+            onChanged: (v) => refresh(() { if (v == true) selected.add(id); else selected.remove(id); }));
+        }).toList())),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')), FilledButton(onPressed: () => Navigator.pop(ctx, selected), child: const Text('تأیید'))],
+      ))));
+    if (result == null) return;
+    final chosen = all.where((e) => result.contains(int.tryParse(e['item_id'].toString()))).toList();
+    final values = Map<int, String>.from(_preTradeValues);
+    for (final item in chosen) { final id = int.tryParse(item['item_id'].toString()); if (id != null) values.putIfAbsent(id, () => ''); }
+    await _preTradeRepository.saveTradeValues(_trade.tradeId, values);
+    if (mounted) setState(() { _preTradeItems = chosen; _preTradeValues = values; });
+  }
+
+  Future<void> _saveTradeImageToGallery(String path) async {
+    try {
+      final bytes = await File(path).readAsBytes();
+      final result = await SaverGallery.saveImage(bytes, fileName: 'trade_${DateTime.now().millisecondsSinceEpoch}${p.extension(path)}', androidRelativePath: 'Pictures/Portfolio', skipIfExists: false);
+      _message(result.isSuccess ? 'تصویر در گالری ذخیره شد.' : 'ذخیره تصویر انجام نشد.');
+    } catch (e) { _message('ذخیره در گالری ناموفق بود: $e'); }
+  }
+
+  Future<void> _deleteTradeImage(int index) async {
+    final paths = List<String>.from(_trade.imagePaths)..removeAt(index);
+    await _tradeRepository.updateTrade(_trade.copyWith(imagePaths: paths));
+    final loaded = await _tradeRepository.getTrade(_trade.tradeId);
+    if (loaded != null && mounted) setState(() => _trade = loaded);
+    widget.onChanged();
+  }
+
+  Future<void> _openTradeImage(String path, int index) async {
+    await showDialog<void>(context: context, builder: (ctx) => Dialog(
+      insetPadding: const EdgeInsets.all(8),
+      child: Column(children: [
+        Expanded(child: InteractiveViewer(child: SizedBox(width: double.infinity, child: Image.file(File(path), fit: BoxFit.contain)))),
+        Wrap(alignment: WrapAlignment.center, children: [
+          IconButton(tooltip: 'نقاشی', icon: const Icon(Icons.draw), onPressed: () async {
+            final edited = await Navigator.of(ctx).push<String>(MaterialPageRoute(builder: (_) => ImageAnnotationPage(imagePath: path)));
+            if (edited == null) return;
+            final saved = await _copyImagePermanently(edited, 'trade_images');
+            final paths = List<String>.from(_trade.imagePaths); if (index < paths.length) paths[index] = saved;
+            await _tradeRepository.updateTrade(_trade.copyWith(imagePaths: paths));
+            final loaded = await _tradeRepository.getTrade(_trade.tradeId);
+            if (loaded != null && mounted) setState(() => _trade = loaded);
+            if (ctx.mounted) Navigator.pop(ctx);
+          }),
+          IconButton(tooltip: 'ذخیره در گالری', icon: const Icon(Icons.download), onPressed: () => _saveTradeImageToGallery(path)),
+          IconButton(tooltip: 'حذف عکس', icon: const Icon(Icons.delete_outline), onPressed: () async { await _deleteTradeImage(index); if (ctx.mounted) Navigator.pop(ctx); }),
+          IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+        ]),
+      ]),
+    ));
   }
 
   Future<void> _loadParameterOrder() async {
@@ -2470,6 +2584,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                           _buildPreTradeSection(),
                           _buildCustomFieldsSection(),
                           _buildExperiencesSection(),
+                          _buildMistakesSection(),
                         ],
                       ),
                       onReorder: (
@@ -2629,6 +2744,8 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                           ),
                         ),
                       ],
+                        const SizedBox(width: 8),
+                        Expanded(child: FilledButton.icon(onPressed: _newMistake, icon: const Icon(Icons.error_outline), label: const Text('اشتباه جدید'))),
                     ),
                     if (_trade.tradeStatus == TradeStatus.open) ...[
                       const SizedBox(
