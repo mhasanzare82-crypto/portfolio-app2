@@ -217,14 +217,15 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _openImage(int index) {
-    Navigator.push(context, MaterialPageRoute(
+  Future<void> _openImage(int index) async {
+    await Navigator.push(context, MaterialPageRoute(
       builder: (_) => _GalleryImageViewer(
         images: _images,
         initialIndex: index,
         topicId: _selectedTopicId!,
       ),
     ));
+    if (mounted) await _loadImages();
   }
 
   @override
