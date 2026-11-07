@@ -1544,12 +1544,6 @@ class _NewTradePageState extends State<NewTradePage> {
                 (v) => setState(() => _showChecklistsSection = v ?? false)),
             toggle('سایت‌ها', _showWebsitesSection,
                 (v) => setState(() => _showWebsitesSection = v ?? false)),
-            toggle('یادداشت جدید', _showNewNoteSection,
-                (v) => setState(() => _showNewNoteSection = v ?? false)),
-            toggle('جست‌وجوی یادداشت', _showNoteSearchSection,
-                (v) => setState(() => _showNoteSearchSection = v ?? false)),
-            toggle('یادداشت‌های ذخیره‌شده', _showSavedNotesSection,
-                (v) => setState(() => _showSavedNotesSection = v ?? false)),
           ]),
         ]),
       ),
@@ -4453,11 +4447,6 @@ class _NewTradePageState extends State<NewTradePage> {
         child: Scaffold(
       appBar: AppBar(
         title: const Text('معامله جدید'),
-        actions: [
-          IconButton(tooltip: 'تنظیم فونت و اندازه نوشته‌ها',
-            onPressed: _showNoteFontSettings,
-            icon: const Icon(Icons.text_fields, size: 20)),
-        ],
       ),
       body: SafeArea(
         child: Form(
@@ -4492,12 +4481,6 @@ class _NewTradePageState extends State<NewTradePage> {
               // بخش‌های اختیاری بلافاصله بعد از کلیدهای نمایش قرار می‌گیرند
               // تا کاربر مجبور نباشد برای پیدا کردن آن‌ها تا انتهای فرم برود.
               if (_showWebsitesSection) _buildQuickWebsitesSection(),
-              if (_showNoteSearchSection) ...[
-                _buildNoteSearchSection(),
-                _buildSelectedNoteResult(),
-              ],
-              if (_showNewNoteSection) _buildNewTradeNoteSection(),
-              if (_showSavedNotesSection) _buildTradeNotesSection(),
 
               // سوالات و چک‌لیست‌ها با نمایش مستقل
               _buildPreTradeSection(),
