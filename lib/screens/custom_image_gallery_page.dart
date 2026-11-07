@@ -183,7 +183,7 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
       final file = File(path);
       if (await file.exists()) await file.delete();
     }
-    await _loadImages();
+    await _loadTopics();
   }
 
   Future<void> _deleteTopic() async {
