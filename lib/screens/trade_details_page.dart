@@ -30,6 +30,7 @@ import '../repositories/trade_note_repository.dart';
 import '../repositories/note_subject_repository.dart';
 import 'color_settings_page.dart';
 import 'image_annotation_page.dart';
+import '../widgets/trade_price_chart_section.dart';
 
 class _ExperienceInlineController extends TextEditingController {
   List<String> imagePaths = [];
@@ -2861,6 +2862,11 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                       footer: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          TradePriceChartSection(
+                            symbol: _trade.assetSymbol,
+                            entryPrice: _trade.entryPrice ?? 0,
+                            entryTime: _trade.entryTime,
+                          ),
                           _buildPreTradeSection(),
                           _buildCustomFieldsSection(),
                           _buildExperiencesSection(),
