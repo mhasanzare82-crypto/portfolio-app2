@@ -2700,15 +2700,6 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    FilledButton.icon(
-                      onPressed: _addTradeImage,
-                      icon: const Icon(
-                        Icons.image,
-                      ),
-                      label: const Text(
-                        'افزودن عکس معامله',
-                      ),
-                    ),
                     if (_trade.imagePaths.isNotEmpty) ...[
                       const SizedBox(
                         height: 10,
@@ -2752,42 +2743,30 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                     const SizedBox(
                       height: 8,
                     ),
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
                       children: [
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _newExperience,
-                            icon: const Icon(
-                              Icons.note_add,
-                            ),
-                            label: const Text(
-                              'تجربه جدید',
-                            ),
-                          ),
+                        FilledButton.icon(
+                          onPressed: _addTradeImage,
+                          icon: const Icon(Icons.add_photo_alternate_outlined),
+                          label: const Text('عکس جدید'),
                         ),
-                        const SizedBox(
-                          width: 8,
+                        FilledButton.icon(
+                          onPressed: _newExperience,
+                          icon: const Icon(Icons.note_add),
+                          label: const Text('تجربه جدید'),
                         ),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _showExperiences,
-                            icon: const Icon(
-                              Icons.notes,
-                            ),
-                            label: Text(
-                              _experiences.isEmpty
-                                  ? 'تجربه‌ها'
-                                  : 'تجربه‌ها (${numbers.formatInteger(_experiences.length)})',
-                            ),
-                          ),
+                        FilledButton.icon(
+                          onPressed: _newMistake,
+                          icon: const Icon(Icons.error_outline),
+                          label: const Text('اشتباه جدید'),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _newMistake,
-                            icon: const Icon(Icons.error_outline),
-                            label: const Text('اشتباه جدید'),
-                          ),
+                        OutlinedButton.icon(
+                          onPressed: _showExperiences,
+                          icon: const Icon(Icons.notes),
+                          label: Text(_experiences.isEmpty ? 'تجربه‌ها' : 'تجربه‌ها (${numbers.formatInteger(_experiences.length)})'),
                         ),
                       ],
                     ),
