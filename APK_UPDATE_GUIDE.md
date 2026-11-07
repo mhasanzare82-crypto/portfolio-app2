@@ -15,7 +15,7 @@
 برای ساخت کلید انتشار (فقط اگر با گواهی نصب فعلی سازگار است):
 
 ```bash
-keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+keytool -genkey -v -keystore android/upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
 ```
 
 کپی `android/key.properties.example` به `android/key.properties` و تنظیم مسیر و رمزها لازم است. فایل keystore را در محل امن و خارج از مخزن نگهداری و پشتیبان‌گیری کنید.
