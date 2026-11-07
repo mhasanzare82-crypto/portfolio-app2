@@ -2260,7 +2260,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                 'قیمت خروج: ${numbers.formatNumber(exitPrice, decimals: _decimalPlaces, trimTrailingZeros: false)}'),
             const SizedBox(height: 10),
             Text(
-                'درصد حجم برای بستن: ${numbers.formatNumber(closePercent, decimals: 0, trimTrailingZeros: false)}٪'),
+                'درصد حجم برای بستن: ${numbers.formatNumber(closePercent, decimals: _decimalPlaces, trimTrailingZeros: false)}٪'),
             Slider(
               value: closePercent,
               min: 0,
@@ -2273,7 +2273,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
             Text(
                 'حجم بسته‌شونده: ${numbers.formatNumber((_trade.volumeAmount * closePercent / 100), decimals: _decimalPlaces, trimTrailingZeros: false)} USD'),
             Text(
-                'مارجین مربوط: ${numbers.formatNumber((_trade.marginAmount * closePercent / 100), decimals: 2, trimTrailingZeros: false)} USD'),
+                'مارجین مربوط: ${numbers.formatNumber((_trade.marginAmount * closePercent / 100), decimals: _decimalPlaces, trimTrailingZeros: false)} USD'),
             const SizedBox(height: 4),
             const Text(
                 'بخش بسته‌شده به‌عنوان معاملهٔ بسته‌شدهٔ جداگانه در ژورنال ثبت می‌شود.'),
