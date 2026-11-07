@@ -267,6 +267,36 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     await _saveMistakes();
   }
 
+  Widget _buildTradeImagesSection() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 20, bottom: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('عکس‌های معامله (${_trade.imagePaths.length})', textAlign: TextAlign.right,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+        if (_trade.imagePaths.isEmpty)
+          const Padding(padding: EdgeInsets.all(12), child: Text('هنوز عکسی اضافه نشده است.', textAlign: TextAlign.right)),
+        ..._trade.imagePaths.asMap().entries.map((entry) => Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            GestureDetector(
+              onTap: () => _openTradeImage(entry.value, entry.key),
+              child: Image.file(File(entry.value), width: double.infinity,
+                fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined)),
+            ),
+            Wrap(alignment: WrapAlignment.end, children: [
+              IconButton(tooltip: 'نقاشی / ویرایش', icon: const Icon(Icons.draw),
+                onPressed: () => _openTradeImage(entry.value, entry.key)),
+              IconButton(tooltip: 'ذخیره در گالری', icon: const Icon(Icons.download),
+                onPressed: () => _saveTradeImageToGallery(entry.value)),
+              IconButton(tooltip: 'حذف عکس', icon: const Icon(Icons.delete_outline),
+                onPressed: () => _deleteTradeImage(entry.key)),
+            ]),
+          ]),
+        )),
+      ]),
+    );
+  }
+
   Widget _buildMistakesSection() => Padding(
     padding: const EdgeInsets.only(top: 20, bottom: 12),
     child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -2596,6 +2626,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                           _buildPreTradeSection(),
                           _buildCustomFieldsSection(),
                           _buildExperiencesSection(),
+                          _buildTradeImagesSection(),
                           _buildMistakesSection(),
                         ],
                       ),
