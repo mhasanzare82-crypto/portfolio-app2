@@ -67,7 +67,10 @@ class _TradePriceChartSectionState extends State<TradePriceChartSection> {
     void finish(){ if(!done.isCompleted) done.complete(); }
     try {
       final start=widget.entryTime.toUtc(), end=DateTime.now().toUtc();
-      final count=((end.difference(start).inMinutes / _minutes(frames[frame]!)).ceil()+2).clamp(1,1000);
+      final requestedSlot=frames[frame]!;
+      final sourceSlot=requestedSlot=='3min'?'1min':requestedSlot=='2hr'?'1hr':requestedSlot;
+      final multiplier=requestedSlot=='3min'?3:requestedSlot=='2hr'?2:1;
+      final count=(((end.difference(start).inMinutes / _minutes(requestedSlot)).ceil()+2)*multiplier).clamp(1,1000);
       ws=await WebSocket.connect('wss://lbkperpws.lbank.com/ws').timeout(const Duration(seconds:12));
       sub=ws.listen((event){
         try {
@@ -77,13 +80,14 @@ class _TradePriceChartSectionState extends State<TradePriceChartSection> {
           if(rows.isNotEmpty){ quiet?.cancel(); quiet=Timer(const Duration(milliseconds:900),finish); }
         } catch(_){}
       },onError:(_)=>finish(),onDone:finish);
-      ws.add(jsonEncode({'action':'request','request':'kbar','kbar':frames[frame],'pair':_pair(widget.symbol),'start':(start.millisecondsSinceEpoch~/1000).toString(),'end':(end.millisecondsSinceEpoch~/1000).toString(),'size':count.toString()}));
+      ws.add(jsonEncode({'action':'request','request':'kbar','kbar':sourceSlot,'pair':_pair(widget.symbol),'start':(start.millisecondsSinceEpoch~/1000).toString(),'end':(end.millisecondsSinceEpoch~/1000).toString(),'size':count.toString()}));
       timeout=Timer(const Duration(seconds:15),finish);
       await done.future;
       if(rows.isEmpty) throw Exception('از سرویس کندل قرارداد داده‌ای دریافت نشد. نماد یا تایم‌فریم ممکن است پشتیبانی نشود.');
       final unique=<int,_TradeCandle>{};
       for(final c in rows){ unique[c.time.millisecondsSinceEpoch]=c; }
-      final result=unique.values.toList()..sort((a,b)=>a.time.compareTo(b.time));
+      final source=unique.values.toList()..sort((a,b)=>a.time.compareTo(b.time));
+      final result=_aggregate(source,requestedSlot);
       if(mounted) setState((){ candles=result; fetchedAt=DateTime.now(); });
     } catch(e) {
       if(mounted) setState(()=>error='دریافت کندل‌ها ناموفق بود: $e');
@@ -91,6 +95,23 @@ class _TradePriceChartSectionState extends State<TradePriceChartSection> {
       timeout?.cancel(); quiet?.cancel(); await sub?.cancel(); await ws?.close();
       if(mounted) setState(()=>loading=false);
     }
+  }
+
+  List<_TradeCandle> _aggregate(List<_TradeCandle> source,String slot) {
+    final interval=_minutes(slot);
+    if(interval==1||interval==60||interval==5||interval==15||interval==30||interval==240) return source;
+    final groups=<int,List<_TradeCandle>>{};
+    for(final candle in source){
+      final minute=candle.time.millisecondsSinceEpoch~/60000;
+      final key=minute~/interval;
+      (groups[key]??=< _TradeCandle>[]).add(candle);
+    }
+    return groups.values.map((items){
+      items.sort((a,b)=>a.time.compareTo(b.time));
+      return _TradeCandle(items.first.time,items.first.open,
+        items.map((x)=>x.high).reduce((a,b)=>a>b?a:b),
+        items.map((x)=>x.low).reduce((a,b)=>a<b?a:b),items.last.close);
+    }).toList()..sort((a,b)=>a.time.compareTo(b.time));
   }
 
   Widget _percent(String title,double value,ValueChanged<double> change)=>Column(mainAxisSize:MainAxisSize.min,children:[
@@ -146,7 +167,8 @@ class _CandlePainter extends CustomPainter {
     final slot=r.width/visible.length, body=(slot*.62).clamp(1.0,12.0);
     for(int i=0;i<visible.length;i++){
       final c=visible[i],x=r.left+slot*(i+.5),up=c.close>=c.open;
-      final paint=Paint()..color=up?const Color(0xff16a34a):const Color(0xffef4444)..strokeWidth=1;
+      final paint=Paint()..strokeWidth=1;
+      paint.color=up?const Color(0xff16a34a):const Color(0xffef4444);
       canvas.drawLine(Offset(x,y(c.high)),Offset(x,y(c.low)),paint);
       final top=y(up?c.close:c.open),bottom=y(up?c.open:c.close);
       canvas.drawRect(Rect.fromLTRB(x-body/2,top,x+body/2,bottom-top<1?top+1:bottom),paint);
