@@ -1,0 +1,7 @@
+# Copy this file to android/key.properties and fill in your own values.
+# Keep android/key.properties and all .jks/.keystore files out of Git.
+storePassword=YOUR_KEYSTORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=YOUR_KEY_ALIAS
+# If the JKS file is in android/app/, use this path:
+storeFile=app/upload-keystore.jks
