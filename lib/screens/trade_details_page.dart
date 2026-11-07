@@ -676,7 +676,14 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     }
 
     if (_preTradeItems.isEmpty) {
-      return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: OutlinedButton.icon(
+          onPressed: _chooseTradeChecklist,
+          icon: const Icon(Icons.playlist_add_check),
+          label: const Text('انتخاب چک‌لیست'),
+        ),
+      );
     }
 
     final questions = _preTradeItems
@@ -754,6 +761,11 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
           const SizedBox(
             height: 10,
           ),
+          Align(alignment: Alignment.centerLeft, child: TextButton.icon(
+            onPressed: _chooseTradeChecklist,
+            icon: const Icon(Icons.playlist_add_check),
+            label: const Text('انتخاب / تغییر چک‌لیست'),
+          )),
           ...widgets,
         ],
       ),
@@ -2686,15 +2698,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                             final imagePath = _trade.imagePaths[index];
                             return GestureDetector(
                               onLongPress: () => _replaceTradeImage(index),
-                              onTap: () => showDialog<void>(
-                                context: context,
-                                builder: (_) => Dialog(
-                                  child: InteractiveViewer(
-                                    child: Image.file(File(imagePath),
-                                        fit: BoxFit.contain),
-                                  ),
-                                ),
-                              ),
+                              onTap: () => _openTradeImage(imagePath, index),
                               child: Container(
                                 width: 120,
                                 height: 90,
@@ -2745,7 +2749,14 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                         ),
                       ],
                         const SizedBox(width: 8),
-                        Expanded(child: FilledButton.icon(onPressed: _newMistake, icon: const Icon(Icons.error_outline), label: const Text('اشتباه جدید'))),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: _newMistake,
+                            icon: const Icon(Icons.error_outline),
+                            label: const Text('اشتباه جدید'),
+                          ),
+                        ),
+                      ],
                     ),
                     if (_trade.tradeStatus == TradeStatus.open) ...[
                       const SizedBox(
