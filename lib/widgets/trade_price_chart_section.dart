@@ -25,8 +25,8 @@ class TradePriceChartSection extends StatefulWidget {
 
 class _TradePriceChartSectionState extends State<TradePriceChartSection> {
   static const frames = <String, String>{
-    '1 دقیقه': '1min', '5 دقیقه': '5min', '15 دقیقه': '15min',
-    '30 دقیقه': '30min', '1 ساعت': '1hr', '4 ساعت': '4hr',
+    '1 دقیقه': 'minute1', '5 دقیقه': 'minute5', '15 دقیقه': 'minute15',
+    '30 دقیقه': 'minute30', '1 ساعت': 'hour1', '4 ساعت': 'hour4',
   };
   String frame = '1 دقیقه';
   late DateTime startAt;
@@ -109,7 +109,7 @@ class _TradePriceChartSectionState extends State<TradePriceChartSection> {
       return;
     }
     final slot = frames[frame]!;
-    final interval = const {'1min': 1, '5min': 5, '15min': 15, '30min': 30, '1hr': 60, '4hr': 240}[slot]!;
+    final interval = const {'minute1': 1, 'minute5': 5, 'minute15': 15, 'minute30': 30, 'hour1': 60, 'hour4': 240}[slot]!;
     final requested = (endAt.difference(startAt).inSeconds / (interval * 60)).ceil() + 2;
     if (requested > 1000) {
       setState(() => error = 'این بازه بیش از ۱۰۰۰ نقطه نیاز دارد؛ بازه کوتاه‌تر یا تایم‌فریم بزرگ‌تر انتخاب کنید.');
