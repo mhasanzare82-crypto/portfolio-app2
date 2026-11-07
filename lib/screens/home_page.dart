@@ -1957,6 +1957,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ),
         Card(
           child: ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('گالری عکس'),
+            subtitle: const Text('ساخت موضوع و نگهداری چند عکس برای هر موضوع'),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CustomImageGalleryPage(),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        Card(
+          child: ListTile(
             leading: const Icon(Icons.note_alt_outlined),
             title: const Text('یادداشت‌های معامله'),
             subtitle:
