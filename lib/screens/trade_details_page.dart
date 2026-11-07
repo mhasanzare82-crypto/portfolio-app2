@@ -2871,7 +2871,6 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                           TradePriceChartSection(
                             symbol: _trade.assetSymbol,
                             entryPrice: _trade.entryPrice ?? 0,
-                            entryTime: _trade.entryTime,
                           ),
                           _buildPreTradeSection(),
                           _buildCustomFieldsSection(),
