@@ -233,6 +233,9 @@ class _NewTradePageState extends State<NewTradePage> {
   final Map<int, TextEditingController> _preTradeControllers = {};
 
   List<Map<String, dynamic>> _preTradeItems = [];
+  final Map<String, bool> _preTradeCollectionVisibility = {};
+  static const String _preTradeCollectionVisibilityKey =
+      'trade_pre_trade_collection_visibility';
 
   bool _showQuestionsSection = true;
   bool _showChecklistsSection = true;
@@ -413,6 +416,22 @@ class _NewTradePageState extends State<NewTradePage> {
 
     if (!mounted) {
       return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final savedVisibility =
+        prefs.getString(_preTradeCollectionVisibilityKey);
+    if (savedVisibility != null && savedVisibility.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(savedVisibility);
+        if (decoded is Map<String, dynamic>) {
+          for (final entry in decoded.entries) {
+            _preTradeCollectionVisibility[entry.key] = entry.value == true;
+          }
+        }
+      } catch (error) {
+        debugPrint('Pre-trade collection visibility load error: $error');
+      }
     }
 
     setState(() {
@@ -1345,6 +1364,11 @@ class _NewTradePageState extends State<NewTradePage> {
     for (final item in _preTradeItems) {
       if (item['category'] == 'questions' && !_showQuestionsSection) continue;
       if (item['category'] != 'questions' && !_showChecklistsSection) continue;
+      final category = item['category']?.toString() ?? '';
+      final folder = (item['folder_name']?.toString() ?? '').trim();
+      final collectionName = folder.isEmpty ? 'موارد قبلی' : folder;
+      final collectionKey = _preTradeCollectionKey(category, collectionName);
+      if (_preTradeCollectionVisibility[collectionKey] == false) continue;
       final required = item['is_required'] == 1;
 
       if (!required) {
@@ -1433,26 +1457,63 @@ class _NewTradePageState extends State<NewTradePage> {
             _buildSection(
               title: titles[category]!,
               icon: icons[category]!,
-              children: _buildPreTradeCollections(sections[category]!),
+                children: _buildPreTradeCollections(
+                sections[category]!,
+                category,
+              ),
             ),
     ]);
   }
 
-  List<Widget> _buildPreTradeCollections(List<Map<String, dynamic>> items) {
+  String _preTradeCollectionKey(String category, String collectionName) =>
+      '$category::$collectionName';
+
+  Future<void> _setPreTradeCollectionVisibility(
+    String key,
+    bool visible,
+  ) async {
+    setState(() => _preTradeCollectionVisibility[key] = visible);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _preTradeCollectionVisibilityKey,
+      jsonEncode(_preTradeCollectionVisibility),
+    );
+  }
+
+  List<Widget> _buildPreTradeCollections(
+    List<Map<String, dynamic>> items,
+    String category,
+  ) {
     final grouped = <String, List<Map<String, dynamic>>>{};
     for (final item in items) {
       final collection = (item['folder_name']?.toString() ?? '').trim();
       final title = collection.isEmpty ? 'موارد قبلی' : collection;
       (grouped[title] ??= []).add(item);
     }
+
     final widgets = <Widget>[];
     for (final entry in grouped.entries) {
-      widgets.add(Padding(
-        padding: const EdgeInsets.only(top: 8, bottom: 6),
-        child: Text(entry.key,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-      ));
-      widgets.addAll(entry.value.map(_buildPreTradeItem));
+      final key = _preTradeCollectionKey(category, entry.key);
+      final visible = _preTradeCollectionVisibility[key] ?? true;
+      widgets.add(
+        CheckboxListTile(
+          contentPadding: const EdgeInsetsDirectional.only(start: 4, end: 8),
+          dense: true,
+          controlAffinity: ListTileControlAffinity.leading,
+          title: Text(
+            entry.key,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+          value: visible,
+          onChanged: (value) => _setPreTradeCollectionVisibility(
+            key,
+            value ?? false,
+          ),
+        ),
+      );
+      if (visible) {
+        widgets.addAll(entry.value.map(_buildPreTradeItem));
+      }
     }
     return widgets;
   }
