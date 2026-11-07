@@ -32,7 +32,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 15,
+      version: 16,
       onConfigure: (db) async {
         await db.execute(
           'PRAGMA foreign_keys = ON',
@@ -941,6 +941,10 @@ class AppDatabase {
               "ALTER TABLE pre_trade_items ADD COLUMN folder_name TEXT NOT NULL DEFAULT ''");
         }
       }
+    }
+
+    if (oldVersion < 16) {
+      await _createCustomGalleryTables(db);
     }
 
     if (oldVersion < 15) {
@@ -2621,4 +2625,36 @@ class AppDatabase {
 
     _database = null;
   }
-}
+}  // ============================================================
+  // CUSTOM IMAGE GALLERY
+  // ============================================================
+
+  Future<void> _createCustomGalleryTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS custom_gallery_topics (
+        topic_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        topic_name TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS custom_gallery_images (
+        image_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        topic_id INTEGER NOT NULL,
+        image_path TEXT NOT NULL,
+        image_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (topic_id)
+          REFERENCES custom_gallery_topics(topic_id)
+          ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_custom_gallery_images_topic
+      ON custom_gallery_images(topic_id)
+    ''');
+  }
+
+
