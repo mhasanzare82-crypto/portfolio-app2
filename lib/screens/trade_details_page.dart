@@ -1652,7 +1652,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   }
 
   Future<void> _saveDecimalPlaces(int value) async {
-    final normalized = value.clamp(0, 10);
+    final normalized = value.clamp(0, 10).toInt();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_decimalPlacesPreferenceKey, normalized);
     if (mounted) setState(() => _decimalPlaces = normalized);
@@ -1821,7 +1821,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
               ? Theme.of(context).colorScheme.primaryContainer
               : null,
           border: Border(bottom: BorderSide(
-            color: Theme.of(context).dividerColor.withValues(alpha: 0.45),
+            color: Theme.of(context).dividerColor.withOpacity(0.45),
           )),
         ),
         child: LongPressDraggable<String>(
@@ -2257,7 +2257,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
           title: const Text('بستن معامله به‌صورت کامل یا جزئی'),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(
-                'قیمت خروج: ${numbers.formatNumber(exitPrice, decimals: 4, trimTrailingZeros: false)}'),
+                'قیمت خروج: ${numbers.formatNumber(exitPrice, decimals: _decimalPlaces, trimTrailingZeros: false)}'),
             const SizedBox(height: 10),
             Text(
                 'درصد حجم برای بستن: ${numbers.formatNumber(closePercent, decimals: 0, trimTrailingZeros: false)}٪'),
@@ -2271,7 +2271,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
               onChanged: (value) => setDialogState(() => closePercent = value),
             ),
             Text(
-                'حجم بسته‌شونده: ${numbers.formatNumber((_trade.volumeAmount * closePercent / 100), decimals: 2, trimTrailingZeros: false)} USD'),
+                'حجم بسته‌شونده: ${numbers.formatNumber((_trade.volumeAmount * closePercent / 100), decimals: _decimalPlaces, trimTrailingZeros: false)} USD'),
             Text(
                 'مارجین مربوط: ${numbers.formatNumber((_trade.marginAmount * closePercent / 100), decimals: 2, trimTrailingZeros: false)} USD'),
             const SizedBox(height: 4),
