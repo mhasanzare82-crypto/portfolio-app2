@@ -12,8 +12,7 @@ class _TradeCandle {
 class TradePriceChartSection extends StatefulWidget {
   final String symbol;
   final double entryPrice;
-  final DateTime entryTime;
-  const TradePriceChartSection({super.key, required this.symbol, required this.entryPrice, required this.entryTime});
+  const TradePriceChartSection({super.key, required this.symbol, required this.entryPrice});
   @override
   State<TradePriceChartSection> createState() => _TradePriceChartSectionState();
 }
@@ -21,6 +20,9 @@ class TradePriceChartSection extends StatefulWidget {
 class _TradePriceChartSectionState extends State<TradePriceChartSection> {
   static const frames = <String, String>{'1 دقیقه':'1min','3 دقیقه':'3min','5 دقیقه':'5min','15 دقیقه':'15min','30 دقیقه':'30min','1 ساعت':'1hr','2 ساعت':'2hr','4 ساعت':'4hr'};
   String frame = '5 دقیقه';
+  String rangeMode = 'کندل';
+  final TextEditingController rangeController = TextEditingController(text: '100');
+  static const rangeModes = <String, String>{'دقیقه':'دقیقه','ساعت':'ساعت','کندل':'کندل'};
   double upper = 5, lower = 5;
   bool loading = false;
   String? error;
@@ -56,6 +58,21 @@ class _TradePriceChartSectionState extends State<TradePriceChartSection> {
     if (t!=null && o!=null && h!=null && l!=null && c!=null) out.add(_TradeCandle(t,o,h,l,c));
   }
 
+  @override
+  void dispose() {
+    rangeController.dispose();
+    super.dispose();
+  }
+
+  int _requestedCount(DateTime now) {
+    final amount = int.tryParse(rangeController.text.trim()) ?? 0;
+    if (amount < 1) throw Exception('مدت یا تعداد کندل باید بیشتر از صفر باشد.');
+    final interval = _minutes(frames[frame]!);
+    if (rangeMode == 'کندل') return amount.clamp(1, 1000);
+    final totalMinutes = rangeMode == 'ساعت' ? amount * 60 : amount;
+    return (totalMinutes / interval).ceil().clamp(1, 1000);
+  }
+
   Future<void> _fetch() async {
     if (widget.entryPrice <= 0) { setState(()=>error='قیمت ورود معتبر نیست.'); return; }
     setState(() { loading=true; error=null; });
@@ -66,11 +83,11 @@ class _TradePriceChartSectionState extends State<TradePriceChartSection> {
     final done=Completer<void>();
     void finish(){ if(!done.isCompleted) done.complete(); }
     try {
-      final start=widget.entryTime.toUtc(), end=DateTime.now().toUtc();
+      final end=DateTime.now().toUtc();
       final requestedSlot=frames[frame]!;
+      final count=_requestedCount(end);
+      final start=end.subtract(Duration(minutes: count * _minutes(requestedSlot)));
       final sourceSlot=requestedSlot=='3min'?'1min':requestedSlot=='2hr'?'1hr':requestedSlot;
-      final multiplier=requestedSlot=='3min'?3:requestedSlot=='2hr'?2:1;
-      final count=(((end.difference(start).inMinutes / _minutes(requestedSlot)).ceil()+2)*multiplier).clamp(1,1000);
       ws=await WebSocket.connect('wss://lbkperpws.lbank.com/ws').timeout(const Duration(seconds:12));
       sub=ws.listen((event){
         try {
@@ -124,11 +141,27 @@ class _TradePriceChartSectionState extends State<TradePriceChartSection> {
 
   @override
   Widget build(BuildContext context)=>Card(margin:const EdgeInsets.only(top:14,bottom:10),child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-    const Text('نمودار قیمتی معامله',textAlign:TextAlign.right,style:TextStyle(fontSize:17,fontWeight:FontWeight.bold)),
+    const Text('نمودار قیمتی',textAlign:TextAlign.right,style:TextStyle(fontSize:17,fontWeight:FontWeight.bold)),
     const SizedBox(height:10),
     DropdownButtonFormField<String>(value:frame,decoration:const InputDecoration(labelText:'تایم‌فریم',isDense:true,border:OutlineInputBorder()),items:frames.keys.map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),onChanged:loading?null:(v){if(v!=null)setState(()=>frame=v);}),
+    const SizedBox(height:8),
+    Row(children:[
+      Expanded(child:DropdownButtonFormField<String>(
+        value:rangeMode,
+        decoration:const InputDecoration(labelText:'نوع بازه',isDense:true,border:OutlineInputBorder()),
+        items:rangeModes.keys.map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),
+        onChanged:loading?null:(v){if(v!=null)setState(()=>rangeMode=v);},
+      )),
+      const SizedBox(width:8),
+      Expanded(child:TextField(
+        controller:rangeController,
+        enabled:!loading,
+        keyboardType:TextInputType.number,
+        decoration:InputDecoration(labelText:rangeMode=='کندل'?'تعداد کندل':rangeMode=='ساعت'?'تعداد ساعت':'تعداد دقیقه',border:const OutlineInputBorder(),isDense:true),
+      )),
+    ]),
     const SizedBox(height:6),
-    Wrap(alignment:WrapAlignment.spaceAround,runSpacing:4,children:[_percent('محدوده بالای ورود',upper,(v)=>setState(()=>upper=v)),_percent('محدوده پایین ورود',lower,(v)=>setState(()=>lower=v))]),
+    Wrap(alignment:WrapAlignment.spaceAround,runSpacing:4,children:[_percent('محدوده بالای قیمت مرجع',upper,(v)=>setState(()=>upper=v)),_percent('محدوده پایین قیمت مرجع',lower,(v)=>setState(()=>lower=v))]),
     Text('کف: '+minPrice.toStringAsFixed(4)+'   ورود: '+widget.entryPrice.toStringAsFixed(4)+'   سقف: '+maxPrice.toStringAsFixed(4),textDirection:TextDirection.ltr,textAlign:TextAlign.center,style:const TextStyle(fontSize:11)),
     const SizedBox(height:8),
     FilledButton.icon(onPressed:loading?null:_fetch,icon:loading?const SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.download),label:Text(loading?'در حال دریافت...':'دریافت نمودار از LBank')),
@@ -136,7 +169,7 @@ class _TradePriceChartSectionState extends State<TradePriceChartSection> {
     if(candles.isNotEmpty)...[
       const SizedBox(height:10),
       SizedBox(height:250,child:CustomPaint(painter:_CandlePainter(candles,minPrice,maxPrice,widget.entryPrice,Theme.of(context).colorScheme.onSurface,Theme.of(context).dividerColor),child:const SizedBox.expand())),
-      Text(candles.length.toString()+' کندل | از '+_fmt(widget.entryTime)+' تا '+_fmt(candles.last.time),textAlign:TextAlign.center,style:const TextStyle(fontSize:11)),
+      Text(candles.length.toString()+' کندل | از '+_fmt(candles.first.time)+' تا '+_fmt(candles.last.time),textAlign:TextAlign.center,style:const TextStyle(fontSize:11)),
       if(fetchedAt!=null) Text('آخرین دریافت: '+_fmt(fetchedAt!),textAlign:TextAlign.center,style:const TextStyle(fontSize:10)),
       const SizedBox(height:8),
       Wrap(alignment:WrapAlignment.spaceAround,children:[
