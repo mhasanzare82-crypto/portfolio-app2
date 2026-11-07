@@ -1,4 +1,7 @@
 import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/rendering.dart';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -214,9 +217,13 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _openImage(String path) {
+  void _openImage(int index) {
     Navigator.push(context, MaterialPageRoute(
-      builder: (_) => _GalleryImageViewer(imagePath: path),
+      builder: (_) => _GalleryImageViewer(
+        images: _images,
+        initialIndex: index,
+        topicId: _selectedTopicId!,
+      ),
     ));
   }
 
@@ -325,7 +332,7 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
                                   final image = _images[index];
                                   final path = image['image_path'].toString();
                                   return GestureDetector(
-                                    onTap: () => _openImage(path),
+                                    onTap: () => _openImage(index),
                                     onLongPress: () => _deleteImage(image),
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(10),
@@ -370,22 +377,349 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
   }
 }
 
-class _GalleryImageViewer extends StatelessWidget {
-  final String imagePath;
-  const _GalleryImageViewer({required this.imagePath});
+class _GalleryImageViewer extends StatefulWidget {
+  final List<Map<String, dynamic>> images;
+  final int initialIndex;
+  final int topicId;
+
+  const _GalleryImageViewer({
+    required this.images,
+    required this.initialIndex,
+    required this.topicId,
+  });
+
+  @override
+  State<_GalleryImageViewer> createState() => _GalleryImageViewerState();
+}
+
+class _GalleryImageViewerState extends State<_GalleryImageViewer> {
+  final GlobalKey _paintBoundaryKey = GlobalKey();
+  late int _currentIndex;
+  final List<Offset?> _points = [];
+  Color _selectedColor = Colors.red;
+  double _strokeWidth = 4;
+  bool _drawingMode = false;
+  bool _saving = false;
+
+  static const List<Color> _colors = [
+    Colors.red,
+    Colors.yellow,
+    Colors.green,
+    Colors.blue,
+    Colors.white,
+    Colors.black,
+  ];
+
+  String get _currentPath =>
+      widget.images[_currentIndex]['image_path'].toString();
+
+  void _changeImage(int delta) {
+    final next = _currentIndex + delta;
+    if (next < 0 || next >= widget.images.length) return;
+    setState(() {
+      _currentIndex = next;
+      _points.clear();
+      _drawingMode = false;
+    });
+  }
+
+  Future<void> _saveDrawing() async {
+    if (_saving || _points.isEmpty) {
+      _showMessage('ابتدا روی عکس نقاشی کنید.');
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final boundary = _paintBoundaryKey.currentContext!.findRenderObject()
+          as RenderRepaintBoundary;
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      if (byteData == null) throw Exception('تبدیل تصویر انجام نشد.');
+
+      final appDir = await getApplicationDocumentsDirectory();
+      final outputDir = Directory(p.join(
+        appDir.path,
+        'custom_gallery',
+        widget.topicId.toString(),
+      ));
+      await outputDir.create(recursive: true);
+      final outputPath = p.join(
+        outputDir.path,
+        'edited_\${DateTime.now().microsecondsSinceEpoch}.png',
+      );
+      await File(outputPath).writeAsBytes(byteData.buffer.asUint8List());
+
+      final db = await AppDatabase.instance.database;
+      await db.insert('custom_gallery_images', {
+        'topic_id': widget.topicId,
+        'image_path': outputPath,
+        'image_order': 0,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      if (!mounted) return;
+      _showMessage('نسخه ویرایش‌شده به گالری اضافه شد.');
+      setState(() {
+        _points.clear();
+        _drawingMode = false;
+      });
+    } catch (error) {
+      _showMessage('ذخیره تصویر انجام نشد: \$error');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white),
-      body: Center(
-        child: InteractiveViewer(
-          minScale: 0.5,
-          maxScale: 5,
-          child: Image.file(File(imagePath)),
-        ),
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text('\${_currentIndex + 1} از \${widget.images.length}'),
+        actions: [
+          IconButton(
+            tooltip: 'نقاشی روی عکس',
+            onPressed: () => setState(() {
+              _drawingMode = !_drawingMode;
+              if (!_drawingMode) _points.clear();
+            }),
+            icon: Icon(
+              _drawingMode ? Icons.edit_off : Icons.draw_outlined,
+              color: _drawingMode ? Colors.amber : Colors.white,
+            ),
+          ),
+          if (_drawingMode) ...[
+            IconButton(
+              tooltip: 'برگشت یک مرحله',
+              onPressed: _points.isEmpty
+                  ? null
+                  : () {
+                      setState(() {
+                        while (_points.isNotEmpty && _points.last != null) {
+                          _points.removeLast();
+                        }
+                        if (_points.isNotEmpty) _points.removeLast();
+                      });
+                    },
+              icon: const Icon(Icons.undo),
+            ),
+            IconButton(
+              tooltip: 'پاک کردن نقاشی',
+              onPressed: () => setState(() => _points.clear()),
+              icon: const Icon(Icons.delete_sweep_outlined),
+            ),
+            IconButton(
+              tooltip: 'ذخیره نسخه نقاشی‌شده',
+              onPressed: _saving ? null : _saveDrawing,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_outlined),
+            ),
+          ],
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                IconButton(
+                  tooltip: 'عکس قبلی',
+                  onPressed: _currentIndex > 0 ? () => _changeImage(-1) : null,
+                  color: Colors.white,
+                  disabledColor: Colors.white24,
+                  icon: const Icon(Icons.chevron_left, size: 38),
+                ),
+                Expanded(
+                  child: Center(
+                    child: RepaintBoundary(
+                      key: _paintBoundaryKey,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return GestureDetector(
+                            onPanStart: _drawingMode
+                                ? (details) => setState(() {
+                                      _points.add(details.localPosition);
+                                    })
+                                : null,
+                            onPanUpdate: _drawingMode
+                                ? (details) => setState(() {
+                                      _points.add(details.localPosition);
+                                    })
+                                : null,
+                            onPanEnd: _drawingMode
+                                ? (_) => setState(() => _points.add(null))
+                                : null,
+                            child: SizedBox(
+                              width: constraints.maxWidth,
+                              height: constraints.maxHeight,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  Image.file(
+                                    File(_currentPath),
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => const Center(
+                                      child: Icon(
+                                        Icons.broken_image_outlined,
+                                        color: Colors.white,
+                                        size: 48,
+                                      ),
+                                    ),
+                                  ),
+                                  CustomPaint(
+                                    painter: _GalleryDrawingPainter(
+                                      points: _points,
+                                      color: _selectedColor,
+                                      strokeWidth: _strokeWidth,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'عکس بعدی',
+                  onPressed: _currentIndex < widget.images.length - 1
+                      ? () => _changeImage(1)
+                      : null,
+                  color: Colors.white,
+                  disabledColor: Colors.white24,
+                  icon: const Icon(Icons.chevron_right, size: 38),
+                ),
+              ],
+            ),
+          ),
+          if (_drawingMode)
+            SafeArea(
+              top: false,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                color: Colors.black87,
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: _colors.map((color) {
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedColor = color),
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 7),
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: _selectedColor == color
+                                    ? Colors.amber
+                                    : Colors.white54,
+                                width: _selectedColor == color ? 3 : 1,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    Row(
+                      children: [
+                        const Icon(Icons.brush, color: Colors.white70),
+                        Expanded(
+                          child: Slider(
+                            min: 1,
+                            max: 18,
+                            value: _strokeWidth,
+                            onChanged: (value) =>
+                                setState(() => _strokeWidth = value),
+                          ),
+                        ),
+                        Text(
+                          _strokeWidth.toStringAsFixed(0),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                    const Text(
+                      'برای نقاشی، انگشت خود را روی عکس حرکت دهید؛ سپس ذخیره را بزنید.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
+}
+
+class _GalleryDrawingPainter extends CustomPainter {
+  final List<Offset?> points;
+  final Color color;
+  final double strokeWidth;
+
+  const _GalleryDrawingPainter({
+    required this.points,
+    required this.color,
+    required this.strokeWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    for (var i = 0; i < points.length - 1; i++) {
+      final current = points[i];
+      final next = points[i + 1];
+      if (current != null && next != null) {
+        canvas.drawLine(current, next, paint);
+      } else if (current != null) {
+        canvas.drawPoints(ui.PointMode.points, [current], paint);
+      }
+    }
+    if (points.isNotEmpty && points.last != null) {
+      canvas.drawPoints(ui.PointMode.points, [points.last!], paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _GalleryDrawingPainter oldDelegate) =>
+      oldDelegate.points != points ||
+      oldDelegate.color != color ||
+      oldDelegate.strokeWidth != strokeWidth;
 }
