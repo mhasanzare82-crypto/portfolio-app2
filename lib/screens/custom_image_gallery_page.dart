@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:saver_gallery/saver_gallery.dart';
 
 import '../database/app_database.dart';
 
@@ -577,8 +578,26 @@ class _GalleryImageViewerState extends State<_GalleryImageViewer> {
         'created_at': DateTime.now().toIso8601String(),
       });
 
+      var savedToDeviceGallery = false;
+      try {
+        await SaverGallery.saveImage(
+          byteData.buffer.asUint8List(),
+          fileName: p.basename(outputPath),
+          androidRelativePath: 'Pictures/LBank Gold',
+          skipIfExists: false,
+        );
+        savedToDeviceGallery = true;
+      } catch (_) {
+        // The private app copy is already saved; public-gallery failure
+        // should not undo the in-app save.
+      }
+
       if (!mounted) return;
-      _showMessage('نسخه ویرایش‌شده به گالری اضافه شد.');
+      _showMessage(
+        savedToDeviceGallery
+            ? 'نسخه ویرایش‌شده داخل برنامه و گالری گوشی ذخیره شد.'
+            : 'نسخه ویرایش‌شده داخل برنامه ذخیره شد؛ ذخیره در گالری گوشی ناموفق بود.',
+      );
       setState(() {
         _points.clear();
         _drawingMode = false;
