@@ -26,6 +26,8 @@ import '../repositories/custom_field_repository.dart';
 import '../repositories/experience_repository.dart';
 import '../repositories/pre_trade_repository.dart';
 import '../repositories/trade_repository.dart';
+import '../repositories/trade_note_repository.dart';
+import '../repositories/note_subject_repository.dart';
 import 'color_settings_page.dart';
 import 'image_annotation_page.dart';
 
@@ -110,6 +112,12 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   final CustomFieldRepository _customFieldRepository = CustomFieldRepository();
   final PreTradeRepository _preTradeRepository = PreTradeRepository();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final TradeNoteRepository _noteRepository = TradeNoteRepository.instance;
+  final NoteSubjectRepository _subjectRepository = NoteSubjectRepository.instance;
+  final TextEditingController _entryTitleController = TextEditingController();
+  final TextEditingController _entryContentController = TextEditingController();
+  String? _activeEntryType;
+  List<Map<String, dynamic>> _tradeNotes = [];
 
   late Trade _trade;
 
@@ -197,6 +205,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     _loadParameterOrder();
     _loadExperiences();
     _loadMistakes();
+    _loadTradeNotes();
   }
 
   Future<void> _loadExperiences() async {
@@ -232,6 +241,218 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     }
   }
 
+
+  String get _tradeNoteSource => 'trade_details:${_trade.tradeId}';
+
+  Future<void> _loadTradeNotes() async {
+    try {
+      final notes = await _noteRepository.getNotesByAsset(_trade.assetSymbol);
+      if (!mounted) return;
+      setState(() {
+        _tradeNotes = notes.where((note) => note['source'] == _tradeNoteSource).toList();
+      });
+    } catch (e) {
+      _message('بارگذاری یادداشت‌های معامله ناموفق بود: $e');
+    }
+  }
+
+  Future<int> _ensureNoteFolder(String category, String symbol) async {
+    var roots = await _subjectRepository.getRootSubjects();
+    var root = roots.where((item) =>
+      item['subject_name']?.toString().toLowerCase() == category.toLowerCase()).toList();
+    final rootId = root.isNotEmpty
+      ? (root.first['subject_id'] as num).toInt()
+      : await _subjectRepository.createSubject(name: category);
+
+    final children = await _subjectRepository.getChildren(rootId);
+    final child = children.where((item) =>
+      item['subject_name']?.toString().toLowerCase() == symbol.toLowerCase()).toList();
+    if (child.isNotEmpty) return (child.first['subject_id'] as num).toInt();
+    return _subjectRepository.createSubject(name: symbol, parentId: rootId);
+  }
+
+  Future<void> _saveTradeEntry() async {
+    final type = _activeEntryType;
+    if (type == null || type == 'photo') return;
+    final title = _entryTitleController.text.trim();
+    final content = _entryContentController.text.trim();
+    if (title.isEmpty) {
+      _message('عنوان را وارد کنید.');
+      return;
+    }
+    if (content.isEmpty) {
+      _message('متن را وارد کنید.');
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      final category = switch (type) {
+        'mistake' => 'اشتباهات',
+        'experience' => 'تجربیات',
+        _ => 'یادداشت‌ها',
+      };
+      final noteType = switch (type) {
+        'mistake' => 'اشتباه',
+        'experience' => 'تجربه',
+        _ => 'یادداشت معامله',
+      };
+      final assetFolderId = await _ensureNoteFolder(category, _trade.assetSymbol);
+      final roots = await _subjectRepository.getRootSubjects();
+      final root = roots.firstWhere((item) =>
+        item['subject_name']?.toString().toLowerCase() == category.toLowerCase());
+      final rootId = (root['subject_id'] as num).toInt();
+
+      if (type == 'experience') {
+        final experience = Experience(
+          experienceId: DateTime.now().microsecondsSinceEpoch.toString(),
+          tradeId: _trade.tradeId,
+          experienceTitle: title,
+          experienceDescription: content,
+          experienceCreatedAt: DateTime.now(),
+        );
+        await _experienceRepository.createExperience(experience);
+      } else if (type == 'mistake') {
+        final mistake = <String, String>{
+          'title': title,
+          'description': content,
+          'createdAt': DateTime.now().toIso8601String(),
+        };
+        setState(() => _mistakes.insert(0, mistake));
+        await _saveMistakes();
+      }
+
+      final noteId = await _noteRepository.createNote(
+        title: title,
+        content: content,
+        noteType: noteType,
+        assetSymbol: _trade.assetSymbol,
+        source: _tradeNoteSource,
+        subjectIds: [rootId, assetFolderId],
+      );
+      final note = await _noteRepository.getNote(noteId);
+      if (!mounted) return;
+      setState(() {
+        if (note != null) _tradeNotes.insert(0, note);
+        _entryTitleController.clear();
+        _entryContentController.clear();
+        _activeEntryType = null;
+      });
+      if (type == 'experience') await _loadExperiences();
+      widget.onChanged();
+      _message('مورد با موفقیت در معامله و بخش یادداشت‌ها ذخیره شد.');
+    } catch (e) {
+      _message('ذخیره مورد ناموفق بود: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Widget _buildEntryComposer() {
+    final type = _activeEntryType;
+    if (type == null) return const SizedBox.shrink();
+    if (type == 'photo') {
+      return Card(
+        margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const Text('افزودن عکس به معامله', textAlign: TextAlign.right,
+              style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _saving ? null : () async {
+                await _addTradeImage();
+                if (mounted) setState(() => _activeEntryType = null);
+              },
+              icon: const Icon(Icons.photo_library_outlined),
+              label: const Text('انتخاب عکس از گالری'),
+            ),
+          ]),
+        ),
+      );
+    }
+    final label = type == 'mistake' ? 'اشتباه جدید' :
+      type == 'experience' ? 'تجربه جدید' : 'یادداشت جدید';
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(label, textAlign: TextAlign.right,
+            style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          TextField(controller: _entryTitleController,
+            decoration: const InputDecoration(labelText: 'عنوان', border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          TextField(controller: _entryContentController, minLines: 3, maxLines: 7,
+            decoration: const InputDecoration(labelText: 'متن / توضیحات', border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: FilledButton.icon(
+              onPressed: _saving ? null : _saveTradeEntry,
+              icon: const Icon(Icons.save_outlined), label: const Text('ذخیره'))),
+            const SizedBox(width: 8),
+            TextButton(onPressed: () => setState(() {
+              _activeEntryType = null;
+              _entryTitleController.clear();
+              _entryContentController.clear();
+            }), child: const Text('انصراف')),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildTradeNotesSection() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 20, bottom: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('یادداشت‌های این معامله (${_tradeNotes.length})',
+          textAlign: TextAlign.right,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+        if (_tradeNotes.isEmpty)
+          const Padding(padding: EdgeInsets.all(12),
+            child: Text('هنوز یادداشتی برای این معامله ثبت نشده است.', textAlign: TextAlign.right)),
+        ..._tradeNotes.map((note) => Card(child: ListTile(
+          title: Text(note['title']?.toString() ?? '', textAlign: TextAlign.right),
+          subtitle: Text(note['content']?.toString() ?? '', textAlign: TextAlign.right,
+            maxLines: 4, overflow: TextOverflow.ellipsis),
+          trailing: Text(note['note_type']?.toString() ?? ''),
+        ))),
+      ]),
+    );
+  }
+
+  Widget _buildTopEntryActions() {
+    final actions = [
+      ('mistake', 'اشتباه جدید', Icons.error_outline),
+      ('photo', 'عکس جدید', Icons.add_photo_alternate_outlined),
+      ('experience', 'تجربه جدید', Icons.lightbulb_outline),
+      ('note', 'یادداشت جدید', Icons.note_add_outlined),
+    ];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(children: [
+        Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center,
+          children: actions.map((action) => OutlinedButton.icon(
+            onPressed: () => setState(() {
+              final next = action.$1;
+              _activeEntryType = _activeEntryType == next ? null : next;
+              _entryTitleController.clear();
+              _entryContentController.clear();
+            }),
+            icon: Icon(action.$3),
+            label: Text(action.$2),
+            style: _activeEntryType == action.$1
+              ? OutlinedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primaryContainer)
+              : null,
+          )).toList()),
+        ),
+        _buildEntryComposer(),
+      ]),
+    );
+  }
 
   Future<void> _loadMistakes() async {
     final prefs = await SharedPreferences.getInstance();
@@ -2623,6 +2844,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                 ],
               ),
             ),
+            _buildTopEntryActions(),
             Expanded(
               child: _loadingParameterOrder
                   ? const Center(
@@ -2644,6 +2866,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                           _buildExperiencesSection(),
                           _buildTradeImagesSection(),
                           _buildMistakesSection(),
+                          _buildTradeNotesSection(),
                         ],
                       ),
                       onReorder: (
@@ -2756,33 +2979,6 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                     const SizedBox(
                       height: 8,
                     ),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        FilledButton.icon(
-                          onPressed: _addTradeImage,
-                          icon: const Icon(Icons.add_photo_alternate_outlined),
-                          label: const Text('عکس جدید'),
-                        ),
-                        FilledButton.icon(
-                          onPressed: _newExperience,
-                          icon: const Icon(Icons.note_add),
-                          label: const Text('تجربه جدید'),
-                        ),
-                        FilledButton.icon(
-                          onPressed: _newMistake,
-                          icon: const Icon(Icons.error_outline),
-                          label: const Text('اشتباه جدید'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: _showExperiences,
-                          icon: const Icon(Icons.notes),
-                          label: Text(_experiences.isEmpty ? 'تجربه‌ها' : 'تجربه‌ها (${numbers.formatInteger(_experiences.length)})'),
-                        ),
-                      ],
-                    ),
                     if (_trade.tradeStatus == TradeStatus.open) ...[
                       const SizedBox(
                         height: 8,
@@ -2810,6 +3006,8 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   @override
   void dispose() {
     _audioPlayer.dispose();
+    _entryTitleController.dispose();
+    _entryContentController.dispose();
     super.dispose();
   }
 }
