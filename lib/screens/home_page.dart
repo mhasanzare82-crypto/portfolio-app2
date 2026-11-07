@@ -23,6 +23,7 @@ import '../widgets/trade_card.dart';
 import 'asset_management_page.dart';
 import 'analysis_page.dart';
 import 'custom_fields_page.dart';
+import 'custom_image_gallery_page.dart';
 import 'trade_notes_page.dart' as new_trade;
 import 'open_positions_tab.dart';
 import 'pre_trade_management_page.dart';
