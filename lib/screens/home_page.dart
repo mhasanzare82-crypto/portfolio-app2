@@ -19,6 +19,7 @@ import '../repositories/price_alert_repository.dart';
 import '../repositories/trade_repository.dart';
 import '../services/lbank_service.dart';
 import '../services/notification_service.dart';
+import '../services/apk_update_service.dart';
 import '../widgets/trade_card.dart';
 import 'asset_management_page.dart';
 import 'analysis_page.dart';
@@ -107,6 +108,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
 
     _initialize();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ApkUpdateService.instance.checkAndPrompt(context);
+      }
+    });
   }
 
   @override
