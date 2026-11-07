@@ -119,7 +119,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   final TextEditingController _entryContentController = TextEditingController();
   String? _activeEntryType;
   bool _showMistakes = true;
-  bool _showExperiences = true;
+  bool _showExperiencesSection = true;
   bool _showTradeNotes = true;
   bool _showTradeImages = true;
   List<Map<String, dynamic>> _tradeNotes = [];
@@ -1192,8 +1192,8 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
       padding: const EdgeInsets.only(top: 20, bottom: 10),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         _buildSectionHeader('تجربه‌های معامله', _experiences.length,
-            _showExperiences, (value) => setState(() => _showExperiences = value)),
-        if (_showExperiences) ...[
+            _showExperiencesSection, (value) => setState(() => _showExperiencesSection = value)),
+        if (_showExperiencesSection) ...[
           if (_loadingExperiences)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
