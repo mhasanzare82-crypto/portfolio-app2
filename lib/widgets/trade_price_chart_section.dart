@@ -97,7 +97,7 @@ class _TradePriceChartSectionState extends State<TradePriceChartSection> {
   }
 
   String _format(DateTime value) =>
-      '\${value.year}/\${value.month.toString().padLeft(2, '0')}/\${value.day.toString().padLeft(2, '0')} \${value.hour.toString().padLeft(2, '0')}:\${value.minute.toString().padLeft(2, '0')}';
+      '${value.year}/${value.month.toString().padLeft(2, '0')}/${value.day.toString().padLeft(2, '0')} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
 
   Future<void> _fetch() async {
     if (endAt.isAfter(DateTime.now().add(const Duration(minutes: 1)))) {
@@ -230,12 +230,12 @@ class _TradePriceChartSectionState extends State<TradePriceChartSection> {
               child: const SizedBox.expand(),
             )),
             const SizedBox(height: 8),
-            Text('\${points.length} نقطه قیمت | \${_format(points.first.time)} تا \${_format(points.last.time)}',
+            Text('${points.length} نقطه قیمت | ${_format(points.first.time)} تا ${_format(points.last.time)}',
               textAlign: TextAlign.center, style: const TextStyle(fontSize: 11)),
-            Text('آخرین قیمت: \${points.last.price.toStringAsFixed(4)}',
+            Text('آخرین قیمت: ${points.last.price.toStringAsFixed(4)}',
               textAlign: TextAlign.center, textDirection: TextDirection.ltr,
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-            if (fetchedAt != null) Text('آخرین دریافت: \${_format(fetchedAt!)}',
+            if (fetchedAt != null) Text('آخرین دریافت: ${_format(fetchedAt!)}',
               textAlign: TextAlign.center, style: const TextStyle(fontSize: 10)),
           ],
         ]),
@@ -301,7 +301,7 @@ class _PriceLinePainter extends CustomPainter {
       final position = item.$2;
       final label = TextPainter(
         text: TextSpan(
-          text: '\${t.month.toString().padLeft(2, '0')}/\${t.day.toString().padLeft(2, '0')}\n\${t.hour.toString().padLeft(2, '0')}:\${t.minute.toString().padLeft(2, '0')}',
+          text: '${t.month.toString().padLeft(2, '0')}/${t.day.toString().padLeft(2, '0')}\n${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}',
           style: TextStyle(color: foreground, fontSize: 8),
         ),
         textDirection: TextDirection.ltr,
