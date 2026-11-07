@@ -32,7 +32,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 16,
+      version: 17,
       onConfigure: (db) async {
         await db.execute(
           'PRAGMA foreign_keys = ON',
@@ -261,6 +261,9 @@ class AppDatabase {
     // ==========================================================
 
     await _createIndexes(db);
+
+    // Ensure gallery tables exist on fresh installs.
+    await _createCustomGalleryTables(db);
   }
 
   // ============================================================
@@ -944,6 +947,11 @@ class AppDatabase {
     }
 
     if (oldVersion < 16) {
+      await _createCustomGalleryTables(db);
+    }
+
+    // Repair databases already marked as version 16.
+    if (oldVersion < 17) {
       await _createCustomGalleryTables(db);
     }
 
