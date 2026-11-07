@@ -198,6 +198,8 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   ];
 
   bool _loadingParameterOrder = true;
+  int _decimalPlaces = 2;
+  static const String _decimalPlacesPreferenceKey = 'trade_details_decimal_places_v1';
 
   @override
   void initState() {
@@ -208,6 +210,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     _loadCustomFieldValues();
     _loadPreTradeValues();
     _loadParameterOrder();
+    _loadDecimalPlaces();
     _loadExperiences();
     _loadMistakes();
     _loadTradeNotes();
@@ -356,90 +359,84 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   Widget _buildEntryComposer() {
     final type = _activeEntryType;
     if (type == null) return const SizedBox.shrink();
-
-    if (type == 'photo') {
-      return Card(
-        margin: EdgeInsets.zero,
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text('افزودن عکس به معامله',
-                    textAlign: TextAlign.right,
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: _saving
-                      ? null
-                      : () async {
-                          await _addTradeImage();
-                          if (mounted) setState(() => _activeEntryType = null);
-                        },
-                  icon: const Icon(Icons.photo_library_outlined),
-                  label: const Text('انتخاب عکس از گالری'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
+    final isPhoto = type == 'photo';
     final label = type == 'mistake'
         ? 'اشتباه جدید'
-        : type == 'experience'
-            ? 'تجربه جدید'
-            : 'یادداشت جدید';
-
+        : type == 'experience' ? 'تجربه جدید' : 'یادداشت جدید';
     return Card(
       margin: EdgeInsets.zero,
-      child: SingleChildScrollView(
+      child: SizedBox(
+        height: 220,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(label,
+              Text(isPhoto ? 'افزودن عکس به معامله' : label,
                   textAlign: TextAlign.right,
                   style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _entryTitleController,
-                decoration: const InputDecoration(
-                    labelText: 'عنوان', border: OutlineInputBorder()),
+              const SizedBox(height: 6),
+              Expanded(
+                child: isPhoto
+                    ? Center(
+                        child: OutlinedButton(
+                          onPressed: _saving ? null : () async {
+                            await _addTradeImage();
+                            if (mounted) setState(() => _activeEntryType = null);
+                          },
+                          child: const Text('انتخاب عکس از گالری'),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            TextField(
+                              controller: _entryTitleController,
+                              decoration: const InputDecoration(
+                                labelText: 'عنوان',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _entryContentController,
+                              minLines: 2,
+                              maxLines: 5,
+                              decoration: const InputDecoration(
+                                labelText: 'متن / توضیحات',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
               ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _entryContentController,
-                minLines: 3,
-                maxLines: 7,
-                decoration: const InputDecoration(
-                    labelText: 'متن / توضیحات',
-                    border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _saving ? null : _saveTradeEntry,
-                      icon: const Icon(Icons.save_outlined),
-                      label: const Text('ذخیره'),
+              if (!isPhoto) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: _saving ? null : _saveTradeEntry,
+                        child: const Text('ذخیره'),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton(
-                    onPressed: () => setState(() {
-                      _activeEntryType = null;
-                      _entryTitleController.clear();
-                      _entryContentController.clear();
-                    }),
-                    child: const Text('انصراف'),
-                  ),
-                ],
-              ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => setState(() {
+                          _activeEntryType = null;
+                          _entryTitleController.clear();
+                          _entryContentController.clear();
+                        }),
+                        child: const Text('انصراف'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -482,12 +479,11 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
 
   Widget _buildTopEntryActions() {
     final actions = [
-      ('mistake', 'اشتباه جدید'),
-      ('experience', 'تجربه جدید'),
-      ('note', 'یادداشت جدید'),
-      ('photo', 'عکس جدید'),
+      ('mistake', 'اشتباه'),
+      ('experience', 'تجربه'),
+      ('note', 'یادداشت'),
+      ('photo', 'عکس'),
     ];
-
     void activate(String type) {
       setState(() {
         _activeEntryType = _activeEntryType == type ? null : type;
@@ -495,62 +491,49 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
         _entryContentController.clear();
       });
     }
-
-    return Column(
-      children: [
-        Row(
-          children: [
-            ...actions.map((action) => Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: OutlinedButton(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        children: [
+          Row(
+            children: actions.map((action) => Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Flexible(
+                    child: TextButton(
                       onPressed: () => activate(action.$1),
-                      style: _activeEntryType == action.$1
-                          ? OutlinedButton.styleFrom(
-                              backgroundColor:
-                                  Theme.of(context).colorScheme.primaryContainer)
-                          : null,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        minimumSize: const Size(0, 38),
+                        backgroundColor: _activeEntryType == action.$1
+                            ? Theme.of(context).colorScheme.primaryContainer
+                            : null,
+                      ),
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
-                        child: Text(action.$2, maxLines: 1, softWrap: false),
+                        child: Text(action.$2, maxLines: 1),
                       ),
                     ),
                   ),
-                )),
-            SizedBox(
-              width: 42,
-              child: PopupMenuButton<String>(
-                tooltip: 'افزودن مورد',
-                padding: EdgeInsets.zero,
-                onSelected: activate,
-                itemBuilder: (context) => actions
-                    .map((action) => PopupMenuItem<String>(
-                          value: action.$1,
-                          child: Text(action.$2),
-                        ))
-                    .toList(),
-                child: Container(
-                  height: 40,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                        color: Theme.of(context).colorScheme.outline),
-                    borderRadius: BorderRadius.circular(8),
+                  IconButton(
+                    tooltip: 'افزودن مورد',
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints.tightFor(width: 30, height: 36),
+                    padding: EdgeInsets.zero,
+                    onPressed: () => activate(action.$1),
+                    icon: const Icon(Icons.add, size: 19),
                   ),
-                  child: const Text('+',
-                      style: TextStyle(fontSize: 24, height: 1)),
-                ),
+                ],
               ),
-            ),
-          ],
-        ),
-        if (_activeEntryType != null)
-          SizedBox(
-            width: double.infinity,
-            height: 220,
-            child: _buildEntryComposer(),
+            )).toList(),
           ),
-      ],
+          if (_activeEntryType != null) ...[
+            const SizedBox(height: 4),
+            SizedBox(width: double.infinity, height: 220, child: _buildEntryComposer()),
+          ],
+        ],
+      ),
     );
   }
 
@@ -1653,10 +1636,75 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
 
   String _formatNumber(
     double value, {
-    int decimals = 2,
+    int? decimals,
   }) {
-    return numbers.formatNumber(value,
-        decimals: decimals, trimTrailingZeros: false);
+    return numbers.formatNumber(
+      value,
+      decimals: decimals ?? _decimalPlaces,
+      trimTrailingZeros: false,
+    );
+  }
+
+  Future<void> _loadDecimalPlaces() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getInt(_decimalPlacesPreferenceKey) ?? 2;
+    if (mounted) setState(() => _decimalPlaces = value.clamp(0, 10));
+  }
+
+  Future<void> _saveDecimalPlaces(int value) async {
+    final normalized = value.clamp(0, 10);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_decimalPlacesPreferenceKey, normalized);
+    if (mounted) setState(() => _decimalPlaces = normalized);
+  }
+
+  Future<void> _showDecimalPlacesSettings() async {
+    var selected = _decimalPlaces;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refresh) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            title: const Text('تنظیم تعداد اعشار'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('تعداد رقم بعد از اعشار: $selected'),
+                Slider(
+                  value: selected.toDouble(),
+                  min: 0,
+                  max: 10,
+                  divisions: 10,
+                  label: '$selected',
+                  onChanged: (value) => refresh(() => selected = value.round()),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  await _saveDecimalPlaces(2);
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                },
+                child: const Text('بازنشانی به ۲'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('انصراف'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  await _saveDecimalPlaces(selected);
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                },
+                child: const Text('ذخیره'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Color? _valueColor(
@@ -1700,34 +1748,26 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     Color? valueColor,
   }) {
     return Padding(
-      padding: const EdgeInsets.all(7),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(
-            title,
-            textAlign: TextAlign.right,
-            textDirection: TextDirection.rtl,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+          Expanded(
+            child: Text(title,
+              textAlign: TextAlign.right,
+              textDirection: TextDirection.rtl,
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
-          const SizedBox(height: 5),
-          Directionality(
-            textDirection: TextDirection.ltr,
-            child: Text(
-              value,
-              textAlign: TextAlign.left,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: valueColor,
+          const SizedBox(width: 16),
+          Flexible(
+            child: Directionality(
+              textDirection: TextDirection.ltr,
+              child: Text(value, textAlign: TextAlign.left,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: valueColor),
               ),
             ),
           ),
@@ -1775,19 +1815,18 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
         });
         _saveParameterOrder();
       },
-      builder: (context, candidateData, rejectedData) => Card(
-        margin: EdgeInsets.zero,
-        clipBehavior: Clip.antiAlias,
-        color: candidateData.isNotEmpty
-            ? Theme.of(context).colorScheme.primaryContainer
-            : null,
+      builder: (context, candidateData, rejectedData) => Container(
+        decoration: BoxDecoration(
+          color: candidateData.isNotEmpty
+              ? Theme.of(context).colorScheme.primaryContainer
+              : null,
+          border: Border(bottom: BorderSide(
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.45),
+          )),
+        ),
         child: LongPressDraggable<String>(
           data: key,
-          feedback: Material(
-            elevation: 8,
-            borderRadius: BorderRadius.circular(10),
-            child: SizedBox(width: 112, child: parameter()),
-          ),
+          feedback: Material(elevation: 4, child: SizedBox(width: 300, child: parameter())),
           childWhenDragging: Opacity(opacity: 0.25, child: parameter()),
           child: parameter(),
         ),
@@ -2922,6 +2961,11 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
           ),
           actions: [
             IconButton(
+              tooltip: 'تنظیم اعشار قیمت‌ها و مقادیر',
+              onPressed: _showDecimalPlacesSettings,
+              icon: const Icon(Icons.tune),
+            ),
+            IconButton(
               tooltip: 'خروجی ZIP همراه رسانه‌ها',
               onPressed: _saving ? null : _exportTradeBundle,
               icon: const Icon(Icons.folder_zip_outlined),
@@ -2988,49 +3032,42 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                     )
                   : CustomScrollView(
                       slivers: [
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
-                          sliver: SliverGrid(
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              crossAxisSpacing: 7,
-                              mainAxisSpacing: 7,
-                              mainAxisExtent: 94,
-                            ),
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final key = _parameterOrder[index];
-                                return _buildDraggableParameter(
-                                  key,
-                                  currentPrice: currentPrice,
-                                  pnlPercent: pnlPercent,
-                                  rr: rr,
-                                  riskValue: riskValue,
-                                  rewardValue: rewardValue,
-                                  priceChangePercent: priceChangePercent,
-                                  liveRiskReward: liveRiskReward,
-                                  displayedDrawdown: displayedDrawdown,
-                                  displayedDrawdownDollar:
-                                      displayedDrawdownDollar,
-                                  displayedDrawdownMargin:
-                                      displayedDrawdownMargin,
-                                );
-                              },
-                              childCount: _parameterOrder.length,
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                            child: TradePriceChartSection(
+                              symbol: _trade.assetSymbol,
+                              entryPrice: _trade.entryPrice ?? 0,
                             ),
                           ),
                         ),
+                        SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final key = _parameterOrder[index];
+                              return _buildDraggableParameter(
+                                key,
+                                currentPrice: currentPrice,
+                                pnlPercent: pnlPercent,
+                                rr: rr,
+                                riskValue: riskValue,
+                                rewardValue: rewardValue,
+                                priceChangePercent: priceChangePercent,
+                                liveRiskReward: liveRiskReward,
+                                displayedDrawdown: displayedDrawdown,
+                                displayedDrawdownDollar: displayedDrawdownDollar,
+                                displayedDrawdownMargin: displayedDrawdownMargin,
+                              );
+                            },
+                            childCount: _parameterOrder.length,
+                          ),
+                        ),
                         SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                           sliver: SliverToBoxAdapter(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                TradePriceChartSection(
-                                  symbol: _trade.assetSymbol,
-                                  entryPrice: _trade.entryPrice ?? 0,
-                                ),
                                 _buildPreTradeSection(),
                                 _buildCustomFieldsSection(),
                                 _buildMistakesSection(),
