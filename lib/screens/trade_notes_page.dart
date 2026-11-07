@@ -4421,14 +4421,10 @@ class _NewTradePageState extends State<NewTradePage> {
               // سرمایه، حجم و اهرم
               _buildCapitalSection(),
 
-              // وضعیت لحظه‌ای
-              _buildMetricsSection(),
+              // وضعیت لحظه‌ای و افت سرمایه در صفحه جزئیات معامله نمایش داده می‌شوند.
 
               // موقعیت قیمت
               _buildProgressSection(),
-
-              // افت سرمایه
-              _buildDrawdownSection(),
 
               _buildOptionalSectionToggles(),
 
