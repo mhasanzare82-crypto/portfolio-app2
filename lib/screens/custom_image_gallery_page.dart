@@ -21,6 +21,7 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
   final ImagePicker _picker = ImagePicker();
   List<Map<String, dynamic>> _topics = [];
   List<Map<String, dynamic>> _images = [];
+  Map<int, int> _topicImageCounts = {};
   int? _selectedTopicId;
   bool _loading = true;
   bool _busy = false;
@@ -34,12 +35,22 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
   Future<void> _loadTopics() async {
     final db = await AppDatabase.instance.database;
     final rows = await db.query('custom_gallery_topics', orderBy: 'topic_name COLLATE NOCASE');
+    final countRows = await db.rawQuery('''
+      SELECT topic_id, COUNT(*) AS image_count
+      FROM custom_gallery_images
+      GROUP BY topic_id
+    ''');
+    final counts = <int, int>{};
+    for (final row in countRows) {
+      counts[row['topic_id'] as int] = row['image_count'] as int;
+    }
     if (!mounted) return;
     setState(() {
       _topics = rows;
-      if (_selectedTopicId == null ||
+      _topicImageCounts = counts;
+      if (_selectedTopicId != null &&
           !_topics.any((topic) => topic['topic_id'] == _selectedTopicId)) {
-        _selectedTopicId = _topics.isEmpty ? null : _topics.first['topic_id'] as int;
+        _selectedTopicId = null;
       }
       _loading = false;
     });
@@ -67,13 +78,13 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('موضوع جدید'),
+        title: const Text('مجموعه جدید'),
         content: TextField(
           controller: controller,
           autofocus: true,
           maxLength: 60,
           decoration: const InputDecoration(
-            labelText: 'نام موضوع',
+            labelText: 'نام مجموعه',
             hintText: 'مثلاً الگوهای معاملاتی',
           ),
           onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
@@ -101,7 +112,7 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
       limit: 1,
     );
     if (existing.isNotEmpty) {
-      _showMessage('این موضوع از قبل وجود دارد.');
+      _showMessage('مجموعه‌ای با این نام از قبل وجود دارد.');
       return;
     }
     final id = await db.insert('custom_gallery_topics', {
@@ -182,11 +193,11 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('حذف موضوع'),
-        content: Text('موضوع «${topic['topic_name']}» و تمام عکس‌های آن حذف شود؟'),
+        title: const Text('حذف مجموعه'),
+        content: Text('مجموعه «${topic['topic_name']}» و تمام عکس‌های آن حذف شود؟'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('انصراف')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('حذف موضوع')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('حذف مجموعه')),
         ],
       ),
     );
@@ -228,155 +239,260 @@ class _CustomImageGalleryPageState extends State<CustomImageGalleryPage> {
     if (mounted) await _loadImages();
   }
 
+  Future<bool> _handleBack() async {
+    if (_selectedTopicId != null) {
+      setState(() => _selectedTopicId = null);
+      await _loadImages();
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _openCollection(int topicId) async {
+    setState(() => _selectedTopicId = topicId);
+    await _loadImages();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final selectedTopic = _topics.where((item) => item['topic_id'] == _selectedTopicId).toList();
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('گالری عکس'),
-        centerTitle: true,
-        actions: [
-          if (_selectedTopicId != null)
-            IconButton(
-              tooltip: 'حذف موضوع',
-              onPressed: _deleteTopic,
-              icon: const Icon(Icons.delete_outline),
-            ),
-        ],
-      ),
-      floatingActionButton: _selectedTopicId == null
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _busy ? null : _pickImages,
-              icon: _busy
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.add_photo_alternate_outlined),
-              label: Text(_busy ? 'در حال افزودن...' : 'افزودن عکس'),
-            ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _topics.isEmpty
-                            ? const Text('هنوز موضوعی ایجاد نشده است.')
-                            : DropdownButtonFormField<int>(
-                                value: _selectedTopicId,
-                                isExpanded: true,
-                                decoration: const InputDecoration(
-                                  labelText: 'انتخاب موضوع',
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: _topics.map((topic) => DropdownMenuItem<int>(
-                                  value: topic['topic_id'] as int,
-                                  child: Text(topic['topic_name'].toString()),
-                                )).toList(),
-                                onChanged: (value) async {
-                                  setState(() => _selectedTopicId = value);
-                                  await _loadImages();
-                                },
-                              ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.filledTonal(
-                        tooltip: 'ایجاد موضوع',
-                        onPressed: _addTopic,
-                        icon: const Icon(Icons.create_new_folder_outlined),
-                      ),
-                    ],
+    final selectedTopic = _topics.where(
+      (item) => item['topic_id'] == _selectedTopicId,
+    ).toList();
+
+    return WillPopScope(
+      onWillPop: _handleBack,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            _selectedTopicId == null
+                ? 'گالری عکس'
+                : selectedTopic.isEmpty
+                    ? 'مجموعه'
+                    : selectedTopic.first['topic_name'].toString(),
+          ),
+          centerTitle: true,
+          leading: _selectedTopicId == null
+              ? null
+              : IconButton(
+                  tooltip: 'بازگشت به مجموعه‌ها',
+                  onPressed: _handleBack,
+                  icon: const Icon(Icons.arrow_back),
+                ),
+          actions: [
+            if (_selectedTopicId == null)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                child: Center(
+                  child: FilledButton.icon(
+                    onPressed: _addTopic,
+                    icon: const Icon(Icons.create_new_folder_outlined, size: 18),
+                    label: const Text('مجموعه جدید'),
                   ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: _selectedTopicId == null
-                        ? Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.photo_library_outlined, size: 58, color: Colors.grey),
-                                const SizedBox(height: 12),
-                                const Text('برای شروع، یک موضوع بسازید.'),
-                                const SizedBox(height: 12),
-                                FilledButton.icon(
-                                  onPressed: _addTopic,
-                                  icon: const Icon(Icons.add),
-                                  label: const Text('ایجاد موضوع'),
-                                ),
-                              ],
-                            ),
-                          )
-                        : _images.isEmpty
-                            ? Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.photo_outlined, size: 58, color: Colors.grey),
-                                    const SizedBox(height: 12),
-                                    Text('گالری «${selectedTopic.first['topic_name']}» خالی است.'),
-                                    const SizedBox(height: 8),
-                                    const Text('با دکمه افزودن عکس، چند تصویر انتخاب کنید.'),
-                                  ],
-                                ),
-                              )
-                            : GridView.builder(
-                                padding: const EdgeInsets.only(bottom: 88),
-                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 3,
-                                  crossAxisSpacing: 8,
-                                  mainAxisSpacing: 8,
-                                ),
-                                itemCount: _images.length,
-                                itemBuilder: (context, index) {
-                                  final image = _images[index];
-                                  final path = image['image_path'].toString();
-                                  return GestureDetector(
-                                    onTap: () => _openImage(index),
-                                    onLongPress: () => _deleteImage(image),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: Stack(
-                                        fit: StackFit.expand,
-                                        children: [
-                                          Image.file(
-                                            File(path),
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => const ColoredBox(
-                                              color: Colors.black12,
-                                              child: Icon(Icons.broken_image_outlined),
-                                            ),
-                                          ),
-                                          Positioned(
-                                            top: 4,
-                                            right: 4,
-                                            child: Material(
-                                              color: Colors.black54,
-                                              borderRadius: BorderRadius.circular(20),
-                                              child: InkWell(
-                                                onTap: () => _deleteImage(image),
-                                                borderRadius: BorderRadius.circular(20),
-                                                child: const Padding(
-                                                  padding: EdgeInsets.all(5),
-                                                  child: Icon(Icons.delete_outline, size: 17, color: Colors.white),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
+                ),
+              )
+            else
+              IconButton(
+                tooltip: 'حذف مجموعه',
+                onPressed: _deleteTopic,
+                icon: const Icon(Icons.delete_outline),
+              ),
+          ],
+        ),
+        floatingActionButton: _selectedTopicId == null
+            ? null
+            : FloatingActionButton.extended(
+                onPressed: _busy ? null : _pickImages,
+                icon: _busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.add_photo_alternate_outlined),
+                label: Text(_busy ? 'در حال افزودن...' : 'افزودن عکس'),
+              ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _selectedTopicId == null
+                ? _buildCollectionsList()
+                : _buildCollectionImages(selectedTopic),
+      ),
+    );
+  }
+
+  Widget _buildCollectionsList() {
+    if (_topics.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.photo_library_outlined,
+                size: 68,
+                color: Colors.grey,
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'هنوز مجموعه‌ای نساخته‌اید.',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'برای دسته‌بندی عکس‌ها، اولین مجموعه خود را ایجاد کنید.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: _addTopic,
+                icon: const Icon(Icons.create_new_folder_outlined),
+                label: const Text('مجموعه جدید'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.12,
+      ),
+      itemCount: _topics.length,
+      itemBuilder: (context, index) {
+        final topic = _topics[index];
+        final id = topic['topic_id'] as int;
+        final count = _topicImageCounts[id] ?? 0;
+
+        return Card(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => _openCollection(id),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.folder_special_outlined,
+                    size: 48,
+                    color: Colors.amber,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    topic['topic_name'].toString(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '\${count} عکس',
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
               ),
             ),
+          ),
+        );
+      },
     );
   }
-}
+
+  Widget _buildCollectionImages(
+    List<Map<String, dynamic>> selectedTopic,
+  ) {
+    if (selectedTopic.isEmpty) {
+      return const Center(child: Text('این مجموعه پیدا نشد.'));
+    }
+
+    if (_images.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.photo_outlined, size: 58, color: Colors.grey),
+              const SizedBox(height: 12),
+              Text(
+                'مجموعه «\${selectedTopic.first['topic_name']}» خالی است.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text('با دکمه افزودن عکس، تصاویر موردنظرتان را وارد کنید.'),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: _busy ? null : _pickImages,
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: const Text('افزودن عکس'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(16).copyWith(bottom: 96),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: _images.length,
+      itemBuilder: (context, index) {
+        final image = _images[index];
+        final path = image['image_path'].toString();
+        return GestureDetector(
+          onTap: () => _openImage(index),
+          onLongPress: () => _deleteImage(image),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.file(
+                  File(path),
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const ColoredBox(
+                    color: Colors.black12,
+                    child: Icon(Icons.broken_image_outlined),
+                  ),
+                ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Material(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                    child: InkWell(
+                      onTap: () => _deleteImage(image),
+                      borderRadius: BorderRadius.circular(20),
+                      child: const Padding(
+                        padding: EdgeInsets.all(5),
+                        child: Icon(
+                          Icons.delete_outline,
+                          size: 17,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
 class _GalleryImageViewer extends StatefulWidget {
   final List<Map<String, dynamic>> images;
