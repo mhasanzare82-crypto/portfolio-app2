@@ -635,25 +635,106 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   Future<void> _chooseTradeChecklist() async {
     final all = await _preTradeRepository.getAllItems();
     if (!mounted) return;
-    final selected = <int>{..._preTradeItems.map((e) => int.tryParse(e['item_id'].toString())).whereType<int>()};
-    final result = await showDialog<Set<int>>(context: context, builder: (ctx) =>
-      StatefulBuilder(builder: (ctx, refresh) => Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
-        title: const Text('انتخاب چک‌لیست‌ها'),
-        content: SizedBox(width: double.maxFinite, height: 400, child: ListView(children: all.map((item) {
-          final id = int.tryParse(item['item_id'].toString()); if (id == null) return const SizedBox.shrink();
-          return CheckboxListTile(value: selected.contains(id), title: Text(item['item_title']?.toString() ?? '', textAlign: TextAlign.right), subtitle: Text(item['category']?.toString() ?? ''),
-            onChanged: (v) => refresh(() { if (v == true) selected.add(id); else selected.remove(id); }));
-        }).toList())),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')), FilledButton(onPressed: () => Navigator.pop(ctx, selected), child: const Text('تأیید'))],
-      ))));
+
+    // Each folder/category is treated as a checklist collection. Selecting
+    // the collection selects every checklist item in that group at once.
+    final groups = <String, List<Map<String, dynamic>>>{};
+    for (final item in all) {
+      final folder = item['folder_name']?.toString().trim() ?? '';
+      final category = item['category']?.toString().trim() ?? 'عمومی';
+      final groupName = folder.isNotEmpty ? folder : category;
+      groups.putIfAbsent(groupName, () => []).add(item);
+    }
+
+    final selected = <int>{
+      ..._preTradeItems
+          .map((e) => int.tryParse(e['item_id'].toString()))
+          .whereType<int>()
+    };
+    final result = await showDialog<Set<int>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, refresh) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            title: const Text('انتخاب مجموعه چک‌لیست‌ها'),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 440,
+              child: ListView(
+                children: groups.entries.map((group) {
+                  final ids = group.value
+                      .map((item) => int.tryParse(item['item_id'].toString()))
+                      .whereType<int>()
+                      .toSet();
+                  final selectedCount = ids.intersection(selected).length;
+                  final allSelected = ids.isNotEmpty && selectedCount == ids.length;
+                  final partiallySelected = selectedCount > 0 && !allSelected;
+                  return Card(
+                    child: ExpansionTile(
+                      leading: Checkbox(
+                        value: allSelected ? true : (partiallySelected ? null : false),
+                        tristate: true,
+                        onChanged: (value) => refresh(() {
+                          if (value == true || partiallySelected) {
+                            selected.addAll(ids);
+                          } else {
+                            selected.removeAll(ids);
+                          }
+                        }),
+                      ),
+                      title: Text(group.key, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text('${selectedCount} از ${ids.length} مورد انتخاب شده'),
+                      children: group.value.map((item) {
+                        final id = int.tryParse(item['item_id'].toString());
+                        if (id == null) return const SizedBox.shrink();
+                        return CheckboxListTile(
+                          dense: true,
+                          value: selected.contains(id),
+                          title: Text(item['item_title']?.toString() ?? '', textAlign: TextAlign.right),
+                          onChanged: (value) => refresh(() {
+                            if (value == true) {
+                              selected.add(id);
+                            } else {
+                              selected.remove(id);
+                            }
+                          }),
+                        );
+                      }).toList(),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, selected), child: const Text('افزودن مجموعه‌های انتخاب‌شده')),
+            ],
+          ),
+        ),
+      ),
+    );
     if (result == null) return;
-    final chosen = all.where((e) => result.contains(int.tryParse(e['item_id'].toString()))).toList();
+
+    final chosen = all.where((item) =>
+      result.contains(int.tryParse(item['item_id'].toString()))).toList();
     final values = Map<int, String>.from(_preTradeValues);
-    for (final item in chosen) { final id = int.tryParse(item['item_id'].toString()); if (id != null) values.putIfAbsent(id, () => ''); }
+    for (final item in chosen) {
+      final id = int.tryParse(item['item_id'].toString());
+      if (id != null) values.putIfAbsent(id, () => '');
+    }
     await _preTradeRepository.saveTradeValues(_trade.tradeId, values);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('trade_selected_checklists_${_trade.tradeId}', result.map((id) => id.toString()).toList());
-    if (mounted) setState(() { _preTradeItems = chosen; _preTradeValues = values; });
+    await prefs.setStringList(
+      'trade_selected_checklists_${_trade.tradeId}',
+      result.map((id) => id.toString()).toList(),
+    );
+    if (mounted) {
+      setState(() {
+        _preTradeItems = chosen;
+        _preTradeValues = values;
+      });
+    }
   }
 
   Future<void> _saveTradeImageToGallery(String path) async {
