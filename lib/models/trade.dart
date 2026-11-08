@@ -26,6 +26,8 @@ class Trade {
   final double marginAmount;
   final double leverageValue;
   final double volumeAmount;
+  /// USD-to-Toman exchange rate captured when the trade is created.
+  final double dollarRate;
 
   final double feePerHundred;
   final double tradeFee;
@@ -93,6 +95,7 @@ class Trade {
     this.marginAmount = 0.0,
     this.leverageValue = 0.0,
     this.volumeAmount = 0.0,
+    this.dollarRate = 0.0,
     this.feePerHundred = 0.0,
     this.tradeFee = 0.0,
     this.entryPrice,
@@ -154,6 +157,7 @@ class Trade {
     double? marginAmount,
     double? leverageValue,
     double? volumeAmount,
+    double? dollarRate,
     double? feePerHundred,
     double? tradeFee,
     Object? entryPrice = _copyWithUnset,
@@ -192,6 +196,7 @@ class Trade {
       marginAmount: marginAmount ?? this.marginAmount,
       leverageValue: leverageValue ?? this.leverageValue,
       volumeAmount: volumeAmount ?? this.volumeAmount,
+      dollarRate: dollarRate ?? this.dollarRate,
       feePerHundred: feePerHundred ?? this.feePerHundred,
       tradeFee: tradeFee ?? this.tradeFee,
       entryPrice: entryPrice == _copyWithUnset
@@ -246,6 +251,7 @@ class Trade {
       'margin_amount': marginAmount,
       'leverage_value': leverageValue,
       'volume_amount': volumeAmount,
+      'dollar_rate': dollarRate,
       'fee_per_hundred': feePerHundred,
       'trade_fee': tradeFee,
       'entry_price': entryPrice,
@@ -300,6 +306,7 @@ class Trade {
       marginAmount: _toDouble(map['margin_amount']),
       leverageValue: _toDouble(map['leverage_value']),
       volumeAmount: _toDouble(map['volume_amount']),
+      dollarRate: _toDouble(map['dollar_rate']),
       feePerHundred: _toDouble(map['fee_per_hundred']),
       tradeFee: _toDouble(map['trade_fee']),
       entryPrice: _toNullableDouble(map['entry_price']),
