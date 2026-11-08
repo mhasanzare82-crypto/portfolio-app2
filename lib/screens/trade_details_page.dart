@@ -365,7 +365,8 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     final isPhoto = type == 'photo';
     final label = type == 'mistake'
         ? 'اشتباه جدید'
-        : type == 'experience' ? 'تجربه جدید' : 'یادداشت جدید';
+        : type == 'experience' ? 'تجربه جدید'
+        : type == 'discovery' ? 'کشفیات جدید' : 'یادداشت جدید';
     return Card(
       margin: EdgeInsets.zero,
       child: SizedBox(
@@ -534,7 +535,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
           ),
           if (_activeEntryType != null) ...[
             const SizedBox(height: 4),
-            SizedBox(width: double.infinity, height: 220, child: _buildEntryComposer()),
+            SizedBox(width: double.infinity, child: _buildEntryComposer()),
           ],
         ],
       ),
@@ -3102,7 +3103,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
             IconButton(
               tooltip: 'تنظیم رنگ‌ها',
               onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => ColorSettingsPage()),
+                MaterialPageRoute(builder: (_) => const ColorSettingsPage()),
               ),
               icon: const Icon(Icons.palette_outlined),
             ),
