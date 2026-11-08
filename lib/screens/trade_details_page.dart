@@ -1911,7 +1911,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
       },
       child: Row(
         children: [
-          Expanded(child: _parameterRow(title, value == null ? '—' : '${_formatNumber(value)}$suffix')),
+          Expanded(child: _parameterRow(title, value == null ? '—' : '${_formatNumber(value, fieldKey: key)}$suffix')),
           const Padding(padding: EdgeInsets.only(left: 16), child: Icon(Icons.edit_outlined, size: 15)),
         ],
       ),
