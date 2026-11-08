@@ -4,7 +4,7 @@ import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:archive/archive.dart';
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' as xl;
 import 'package:docx_dart/docx_dart.dart' as docx;
 import 'package:docx_dart/src/shared.dart' show Inches;
 import 'package:file_picker/file_picker.dart';
@@ -2778,7 +2778,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
 
   Future<void> _exportTradeExcel() async {
     try {
-      final workbook = Excel.createExcel();
+      final workbook = xl.Excel.createExcel();
       final sheet = workbook['جزئیات معامله'];
       final rows = <List<dynamic>>[
         ['عنوان', 'مقدار'],
@@ -2810,53 +2810,53 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
       for (var r = 0; r < rows.length; r++) {
         for (var c = 0; c < rows[r].length; c++) {
           final value = rows[r][c];
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: r)).value =
-              value == null ? TextCellValue('') :
-              value is num ? DoubleCellValue(value.toDouble()) :
-              TextCellValue(value.toString());
+          sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: c, rowIndex: r)).value =
+              value == null ? xl.TextCellValue('') :
+              value is num ? xl.DoubleCellValue(value.toDouble()) :
+              xl.TextCellValue(value.toString());
         }
       }
       final customSheet = workbook['فیلدهای سفارشی'];
-      customSheet.cell(CellIndex.indexByString('A1')).value = TextCellValue('فیلد');
-      customSheet.cell(CellIndex.indexByString('B1')).value = TextCellValue('مقدار');
+      customSheet.cell(xl.CellIndex.indexByString('A1')).value = xl.TextCellValue('فیلد');
+      customSheet.cell(xl.CellIndex.indexByString('B1')).value = xl.TextCellValue('مقدار');
       var row = 1;
       for (final field in _customFields) {
-        customSheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row)).value = TextCellValue(field.fieldName);
-        customSheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row)).value = TextCellValue(_customFieldValues[field.fieldId] ?? '');
+        customSheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row)).value = xl.TextCellValue(field.fieldName);
+        customSheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row)).value = xl.TextCellValue(_customFieldValues[field.fieldId] ?? '');
         row++;
       }
       final checklist = workbook['چک‌لیست'];
-      checklist.cell(CellIndex.indexByString('A1')).value = TextCellValue('مورد');
-      checklist.cell(CellIndex.indexByString('B1')).value = TextCellValue('مقدار');
+      checklist.cell(xl.CellIndex.indexByString('A1')).value = xl.TextCellValue('مورد');
+      checklist.cell(xl.CellIndex.indexByString('B1')).value = xl.TextCellValue('مقدار');
       row = 1;
       for (final item in _preTradeItems) {
         final id = int.tryParse(item['item_id'].toString());
-        checklist.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row)).value = TextCellValue(item['item_title'].toString());
-        checklist.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row)).value = TextCellValue(_preTradeValues[id] ?? '');
+        checklist.cell(xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row)).value = xl.TextCellValue(item['item_title'].toString());
+        checklist.cell(xl.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row)).value = xl.TextCellValue(_preTradeValues[id] ?? '');
         row++;
       }
       final notes = workbook['یادداشت‌ها'];
-      notes.cell(CellIndex.indexByString('A1')).value = TextCellValue('نوع');
-      notes.cell(CellIndex.indexByString('B1')).value = TextCellValue('عنوان');
-      notes.cell(CellIndex.indexByString('C1')).value = TextCellValue('متن');
+      notes.cell(xl.CellIndex.indexByString('A1')).value = xl.TextCellValue('نوع');
+      notes.cell(xl.CellIndex.indexByString('B1')).value = xl.TextCellValue('عنوان');
+      notes.cell(xl.CellIndex.indexByString('C1')).value = xl.TextCellValue('متن');
       row = 1;
       for (final note in _tradeNotes) {
-        notes.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row)).value = TextCellValue(note['note_type']?.toString() ?? '');
-        notes.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row)).value = TextCellValue(note['title']?.toString() ?? '');
-        notes.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row)).value = TextCellValue(note['content']?.toString() ?? '');
+        notes.cell(xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row)).value = xl.TextCellValue(note['note_type']?.toString() ?? '');
+        notes.cell(xl.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row)).value = xl.TextCellValue(note['title']?.toString() ?? '');
+        notes.cell(xl.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row)).value = xl.TextCellValue(note['content']?.toString() ?? '');
         row++;
       }
       final bytes = workbook.encode();
-      if (bytes == null) throw Exception('ساخت فایل Excel ناموفق بود.');
+      if (bytes == null) throw Exception('ساخت فایل xl.Excel ناموفق بود.');
       await FilePicker.platform.saveFile(
-        dialogTitle: 'ذخیره گزارش Excel',
+        dialogTitle: 'ذخیره گزارش xl.Excel',
         fileName: 'trade_${_trade.assetSymbol}_${_trade.tradeId}.xlsx',
         type: FileType.custom,
         allowedExtensions: ['xlsx'],
         bytes: Uint8List.fromList(bytes),
       );
     } catch (e) {
-      _message('خروجی Excel ناموفق بود: $e');
+      _message('خروجی xl.Excel ناموفق بود: $e');
     }
   }
 
@@ -3341,7 +3341,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
               },
               itemBuilder: (_) => const [
                 PopupMenuItem(value: 'docx', child: Text('خروجی Word')),
-                PopupMenuItem(value: 'xlsx', child: Text('خروجی Excel')),
+                PopupMenuItem(value: 'xlsx', child: Text('خروجی xl.Excel')),
                 PopupMenuItem(value: 'zip', child: Text('بسته کامل همراه تصاویر')),
               ],
             ),
