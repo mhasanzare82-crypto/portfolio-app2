@@ -2737,6 +2737,10 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
         'مارجین تومانی': '${_trade.marginAmount * _trade.dollarRate}',
         'حجم تومانی': '${_trade.volumeAmount * _trade.dollarRate}',
         'اهرم تومانی': '${_trade.leverageValue * _trade.dollarRate}',
+        'درصد سود مارجین': '${_trade.marginAmount > 0 && _pnl > 0 ? (_pnl / _trade.marginAmount) * 100 : 0}',
+        'درصد ضرر مارجین': '${_trade.marginAmount > 0 && _pnl < 0 ? (_pnl.abs() / _trade.marginAmount) * 100 : 0}',
+        'درصد سود حجم': '${_trade.volumeAmount > 0 && _pnl > 0 ? (_pnl / _trade.volumeAmount) * 100 : 0}',
+        'درصد ضرر حجم': '${_trade.volumeAmount > 0 && _pnl < 0 ? (_pnl.abs() / _trade.volumeAmount) * 100 : 0}',
       };
       for (final entry in rows.entries) {
         report.addParagraph(text: '${entry.key}: ${entry.value}');
@@ -2798,6 +2802,10 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
         ['مارجین تومانی', _trade.marginAmount * _trade.dollarRate],
         ['حجم تومانی', _trade.volumeAmount * _trade.dollarRate],
         ['اهرم تومانی', _trade.leverageValue * _trade.dollarRate],
+        ['درصد سود مارجین', _trade.marginAmount > 0 && _pnl > 0 ? (_pnl / _trade.marginAmount) * 100 : 0],
+        ['درصد ضرر مارجین', _trade.marginAmount > 0 && _pnl < 0 ? (_pnl.abs() / _trade.marginAmount) * 100 : 0],
+        ['درصد سود حجم', _trade.volumeAmount > 0 && _pnl > 0 ? (_pnl / _trade.volumeAmount) * 100 : 0],
+        ['درصد ضرر حجم', _trade.volumeAmount > 0 && _pnl < 0 ? (_pnl.abs() / _trade.volumeAmount) * 100 : 0],
       ];
       for (var r = 0; r < rows.length; r++) {
         for (var c = 0; c < rows[r].length; c++) {
