@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:archive/archive.dart';
+import 'package:excel/excel.dart';
 import 'package:docx_dart/docx_dart.dart' as docx;
 import 'package:docx_dart/src/shared.dart' show Inches;
 import 'package:file_picker/file_picker.dart';
@@ -30,7 +31,6 @@ import '../repositories/trade_note_repository.dart';
 import '../repositories/note_subject_repository.dart';
 import 'color_settings_page.dart';
 import 'image_annotation_page.dart';
-import '../widgets/trade_price_chart_section.dart';
 
 class _ExperienceInlineController extends TextEditingController {
   List<String> imagePaths = [];
@@ -122,6 +122,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   bool _showExperiencesSection = true;
   bool _showTradeNotes = true;
   bool _showTradeImages = true;
+  bool _showAllFields = true;
   List<Map<String, dynamic>> _tradeNotes = [];
 
   late Trade _trade;
@@ -298,11 +299,13 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
       final category = switch (type) {
         'mistake' => 'اشتباهات',
         'experience' => 'تجربیات',
+        'discovery' => 'کشفیات',
         _ => 'یادداشت‌ها',
       };
       final noteType = switch (type) {
         'mistake' => 'اشتباه',
         'experience' => 'تجربه',
+        'discovery' => 'کشفیات',
         _ => 'یادداشت معامله',
       };
       final assetFolderId = await _ensureNoteFolder(category, _trade.assetSymbol);
@@ -366,7 +369,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     return Card(
       margin: EdgeInsets.zero,
       child: SizedBox(
-        height: 220,
+        height: MediaQuery.of(context).size.height * 0.78,
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Column(
@@ -483,6 +486,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
       ('experience', 'تجربه'),
       ('note', 'یادداشت'),
       ('photo', 'عکس'),
+      ('discovery', 'کشفیات'),
     ];
     void activate(String type) {
       setState(() {
@@ -2506,6 +2510,136 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     widget.onChanged();
   }
 
+  Future<void> _exportTradeWord() async {
+    try {
+      final report = docx.loadDocxDocument();
+      report.addHeading(text: 'گزارش معامله', level: 1);
+      final rows = <String, String>{
+        'دارایی': _trade.assetSymbol,
+        'جهت': _trade.tradeDirection.name,
+        'نوع معامله': _trade.tradeType.name,
+        'وضعیت': _trade.tradeStatus.name,
+        'حالت مارجین': _trade.marginMode,
+        'تایم‌فریم': _trade.tradeTimeframe,
+        'قیمت ورود': '${_trade.entryPrice ?? '—'}',
+        'قیمت فعلی': '${_currentPrice}',
+        'قیمت خروج': '${_trade.exitPrice ?? '—'}',
+        'مارجین (USD)': '${_trade.marginAmount}',
+        'اهرم': '${_trade.leverageValue}',
+        'حجم (USD)': '${_trade.volumeAmount}',
+        'حد ضرر': '${_trade.stopPrice ?? '—'}',
+        'حد سود': '${_trade.targetPrice ?? '—'}',
+        'سود و زیان نهایی (USD)': '${_trade.finalPnl}',
+      };
+      for (final entry in rows.entries) {
+        report.addParagraph(text: '${entry.key}: ${entry.value}');
+      }
+      report.addHeading(text: 'فیلدهای سفارشی', level: 2);
+      for (final field in _customFields) {
+        report.addParagraph(text: '${field.fieldName}: ${_customFieldValues[field.fieldId] ?? ''}');
+      }
+      report.addHeading(text: 'چک‌لیست معامله', level: 2);
+      for (final item in _preTradeItems) {
+        final id = int.tryParse(item['item_id'].toString());
+        report.addParagraph(text: '${item['item_title']}: ${_preTradeValues[id] ?? ''}');
+      }
+      report.addHeading(text: 'یادداشت‌ها، اشتباهات و کشفیات', level: 2);
+      for (final note in _tradeNotes) {
+        report.addParagraph(text: '${note['note_type']}: ${note['title']}');
+        report.addParagraph(text: note['content']?.toString() ?? '');
+      }
+      final temp = await getTemporaryDirectory();
+      final filePath = p.join(temp.path, 'trade_${_trade.tradeId}.docx');
+      report.save(filePath);
+      final bytes = await File(filePath).readAsBytes();
+      await File(filePath).delete();
+      await FilePicker.platform.saveFile(
+        dialogTitle: 'ذخیره گزارش Word',
+        fileName: 'trade_${_trade.assetSymbol}_${_trade.tradeId}.docx',
+        type: FileType.custom,
+        allowedExtensions: ['docx'],
+        bytes: bytes,
+      );
+    } catch (e) {
+      _message('خروجی Word ناموفق بود: $e');
+    }
+  }
+
+  Future<void> _exportTradeExcel() async {
+    try {
+      final workbook = Excel.createExcel();
+      final sheet = workbook['جزئیات معامله'];
+      final rows = <List<dynamic>>[
+        ['عنوان', 'مقدار'],
+        ['دارایی', _trade.assetSymbol],
+        ['جهت', _trade.tradeDirection.name],
+        ['نوع معامله', _trade.tradeType.name],
+        ['وضعیت', _trade.tradeStatus.name],
+        ['حالت مارجین', _trade.marginMode],
+        ['تایم‌فریم', _trade.tradeTimeframe],
+        ['قیمت ورود', _trade.entryPrice],
+        ['قیمت فعلی', _currentPrice],
+        ['قیمت خروج', _trade.exitPrice],
+        ['مارجین USD', _trade.marginAmount],
+        ['اهرم', _trade.leverageValue],
+        ['حجم USD', _trade.volumeAmount],
+        ['حد ضرر', _trade.stopPrice],
+        ['حد سود', _trade.targetPrice],
+        ['سود و زیان نهایی USD', _trade.finalPnl],
+      ];
+      for (var r = 0; r < rows.length; r++) {
+        for (var c = 0; c < rows[r].length; c++) {
+          final value = rows[r][c];
+          sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: r)).value =
+              value == null ? TextCellValue('') :
+              value is num ? DoubleCellValue(value.toDouble()) :
+              TextCellValue(value.toString());
+        }
+      }
+      final customSheet = workbook['فیلدهای سفارشی'];
+      customSheet.cell(CellIndex.indexByString('A1')).value = TextCellValue('فیلد');
+      customSheet.cell(CellIndex.indexByString('B1')).value = TextCellValue('مقدار');
+      var row = 1;
+      for (final field in _customFields) {
+        customSheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row)).value = TextCellValue(field.fieldName);
+        customSheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row)).value = TextCellValue(_customFieldValues[field.fieldId] ?? '');
+        row++;
+      }
+      final checklist = workbook['چک‌لیست'];
+      checklist.cell(CellIndex.indexByString('A1')).value = TextCellValue('مورد');
+      checklist.cell(CellIndex.indexByString('B1')).value = TextCellValue('مقدار');
+      row = 1;
+      for (final item in _preTradeItems) {
+        final id = int.tryParse(item['item_id'].toString());
+        checklist.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row)).value = TextCellValue(item['item_title'].toString());
+        checklist.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row)).value = TextCellValue(_preTradeValues[id] ?? '');
+        row++;
+      }
+      final notes = workbook['یادداشت‌ها'];
+      notes.cell(CellIndex.indexByString('A1')).value = TextCellValue('نوع');
+      notes.cell(CellIndex.indexByString('B1')).value = TextCellValue('عنوان');
+      notes.cell(CellIndex.indexByString('C1')).value = TextCellValue('متن');
+      row = 1;
+      for (final note in _tradeNotes) {
+        notes.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row)).value = TextCellValue(note['note_type']?.toString() ?? '');
+        notes.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row)).value = TextCellValue(note['title']?.toString() ?? '');
+        notes.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row)).value = TextCellValue(note['content']?.toString() ?? '');
+        row++;
+      }
+      final bytes = workbook.encode();
+      if (bytes == null) throw Exception('ساخت فایل Excel ناموفق بود.');
+      await FilePicker.platform.saveFile(
+        dialogTitle: 'ذخیره گزارش Excel',
+        fileName: 'trade_${_trade.assetSymbol}_${_trade.tradeId}.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+        bytes: Uint8List.fromList(bytes),
+      );
+    } catch (e) {
+      _message('خروجی Excel ناموفق بود: $e');
+    }
+  }
+
   Future<void> _exportTradeBundle() async {
     try {
       final archive = Archive();
@@ -2961,28 +3095,35 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
           ),
           actions: [
             IconButton(
-              tooltip: 'تنظیم اعشار قیمت‌ها و مقادیر',
+              tooltip: 'تنظیم اعشار فیلدها',
               onPressed: _showDecimalPlacesSettings,
               icon: const Icon(Icons.tune),
             ),
             IconButton(
-              tooltip: 'خروجی ZIP همراه رسانه‌ها',
-              onPressed: _saving ? null : _exportTradeBundle,
-              icon: const Icon(Icons.folder_zip_outlined),
+              tooltip: 'تنظیم رنگ‌ها',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => ColorSettingsPage()),
+              ),
+              icon: const Icon(Icons.palette_outlined),
             ),
             IconButton(
-              tooltip: 'بازگردانی ترتیب',
-              onPressed: _loadingParameterOrder ? null : _resetParameterOrder,
-              icon: const Icon(
-                Icons.restart_alt,
-              ),
+              tooltip: _showAllFields ? 'مخفی کردن همه فیلدها' : 'نمایش همه فیلدها',
+              onPressed: () => setState(() => _showAllFields = !_showAllFields),
+              icon: Icon(_showAllFields ? Icons.visibility_off_outlined : Icons.visibility_outlined),
             ),
-            IconButton(
-              onPressed: _saving ? null : _editTrade,
-              icon: const Icon(
-                Icons.edit,
-              ),
-              tooltip: 'ویرایش معامله',
+            PopupMenuButton<String>(
+              tooltip: 'خروجی معامله',
+              icon: const Icon(Icons.file_download_outlined),
+              onSelected: (value) {
+                if (value == 'docx') _exportTradeWord();
+                if (value == 'xlsx') _exportTradeExcel();
+                if (value == 'zip') _exportTradeBundle();
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'docx', child: Text('خروجی Word')),
+                PopupMenuItem(value: 'xlsx', child: Text('خروجی Excel')),
+                PopupMenuItem(value: 'zip', child: Text('بسته کامل همراه تصاویر')),
+              ],
             ),
           ],
         ),
@@ -3007,20 +3148,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                       ),
                     ),
                   ),
-                  const Icon(
-                    Icons.drag_indicator,
-                    size: 20,
-                  ),
-                  const SizedBox(
-                    width: 4,
-                  ),
-                  Text(
-                    'برای جابه‌جایی بکشید',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.dragHelper,
-                    ),
-                  ),
+
                 ],
               ),
             ),
@@ -3032,20 +3160,11 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                     )
                   : CustomScrollView(
                       slivers: [
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                            child: TradePriceChartSection(
-                              symbol: _trade.assetSymbol,
-                              entryPrice: _trade.entryPrice ?? 0,
-                            ),
-                          ),
-                        ),
                         SliverList(
                           delegate: SliverChildBuilderDelegate(
                             (context, index) {
                               final key = _parameterOrder[index];
-                              return _buildDraggableParameter(
+                              return _buildParameter(
                                 key,
                                 currentPrice: currentPrice,
                                 pnlPercent: pnlPercent,
@@ -3059,23 +3178,25 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                                 displayedDrawdownMargin: displayedDrawdownMargin,
                               );
                             },
-                            childCount: _parameterOrder.length,
+                            childCount: _showAllFields ? _parameterOrder.length : 0,
                           ),
                         ),
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                           sliver: SliverToBoxAdapter(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _buildPreTradeSection(),
-                                _buildCustomFieldsSection(),
-                                _buildMistakesSection(),
-                                _buildExperiencesSection(),
-                                _buildTradeNotesSection(),
-                                _buildTradeImagesSection(),
-                              ],
-                            ),
+                            child: _showAllFields
+                                ? Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      _buildPreTradeSection(),
+                                      _buildCustomFieldsSection(),
+                                      _buildMistakesSection(),
+                                      _buildExperiencesSection(),
+                                      _buildTradeNotesSection(),
+                                      _buildTradeImagesSection(),
+                                    ],
+                                  )
+                                : const SizedBox.shrink(),
                           ),
                         ),
                       ],
