@@ -371,7 +371,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     return Card(
       margin: EdgeInsets.zero,
       child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.78,
+        height: MediaQuery.of(context).size.height * 0.58,
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Column(
@@ -766,6 +766,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
             final edited = await Navigator.of(ctx).push<String>(MaterialPageRoute(builder: (_) => ImageAnnotationPage(imagePath: path)));
             if (edited == null) return;
             final saved = await _copyImagePermanently(edited, 'trade_images');
+            await _saveTradeImageToAppGallery(saved);
             final paths = List<String>.from(_trade.imagePaths); if (index < paths.length) paths[index] = saved;
             await _tradeRepository.updateTrade(_trade.copyWith(imagePaths: paths));
             final loaded = await _tradeRepository.getTrade(_trade.tradeId);
