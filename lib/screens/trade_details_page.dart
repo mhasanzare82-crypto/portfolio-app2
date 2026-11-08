@@ -163,6 +163,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     'margin',
     'leverage',
     'volume',
+    'dollarRate',
     'fee',
     'entry',
     'currentPrice',
@@ -1913,6 +1914,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
           case 'margin': updated = _trade.copyWith(marginAmount: next); break;
           case 'leverage': updated = _trade.copyWith(leverageValue: next); break;
           case 'volume': updated = _trade.copyWith(volumeAmount: next); break;
+          case 'dollarRate': updated = _trade.copyWith(dollarRate: next); break;
           case 'fee': updated = _trade.copyWith(tradeFee: next); break;
           case 'entry': updated = _trade.copyWith(entryPrice: next); break;
           case 'exit': updated = _trade.copyWith(exitPrice: next); break;
@@ -2098,6 +2100,9 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
 
       case 'volume':
         return _editableNumericRow('volume', 'حجم معامله', _trade.volumeAmount);
+
+      case 'dollarRate':
+        return _editableNumericRow('dollarRate', 'قیمت دلار (تومان)', _trade.dollarRate);
 
       case 'fee':
         return _editableNumericRow('fee', 'کارمزد', _trade.tradeFee);
