@@ -201,6 +201,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
 
   bool _loadingParameterOrder = true;
   int _decimalPlaces = 2;
+  final Map<String, int> _fieldDecimalPlaces = {};
   static const String _decimalPlacesPreferenceKey = 'trade_details_decimal_places_v1';
 
   @override
@@ -1725,10 +1726,11 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   String _formatNumber(
     double value, {
     int? decimals,
+    String? fieldKey,
   }) {
     return numbers.formatNumber(
       value,
-      decimals: decimals ?? _decimalPlaces,
+      decimals: decimals ?? (fieldKey == null ? _decimalPlaces : (_fieldDecimalPlaces[fieldKey] ?? _decimalPlaces)),
       trimTrailingZeros: false,
     );
   }
@@ -1736,7 +1738,12 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   Future<void> _loadDecimalPlaces() async {
     final prefs = await SharedPreferences.getInstance();
     final value = prefs.getInt(_decimalPlacesPreferenceKey) ?? 2;
-    if (mounted) setState(() => _decimalPlaces = value.clamp(0, 10));
+    final raw = prefs.getString('trade_details_field_decimal_places_v1');
+    final decoded = <String, int>{};
+    if (raw != null) {
+      try { (jsonDecode(raw) as Map).forEach((key, value) { if (value is num) decoded[key.toString()] = value.toInt().clamp(0, 10); }); } catch (_) {}
+    }
+    if (mounted) setState(() { _decimalPlaces = value.clamp(0, 10); _fieldDecimalPlaces.addAll(decoded); });
   }
 
   Future<void> _saveDecimalPlaces(int value) async {
@@ -1747,43 +1754,69 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   }
 
   Future<void> _showDecimalPlacesSettings() async {
-    var selected = _decimalPlaces;
+    const fields = <String, String>{
+      'price': 'قیمت‌ها',
+      'margin': 'مارجین',
+      'leverage': 'اهرم',
+      'volume': 'حجم معامله',
+      'fee': 'کارمزد',
+      'pnl': 'سود و زیان',
+      'percent': 'درصدها',
+      'risk': 'ریسک و بازده',
+    };
+    var fallback = _decimalPlaces;
+    final selected = Map<String, int>.from(_fieldDecimalPlaces);
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, refresh) => Directionality(
           textDirection: TextDirection.rtl,
           child: AlertDialog(
-            title: const Text('تنظیم تعداد اعشار'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('تعداد رقم بعد از اعشار: $selected'),
-                Slider(
-                  value: selected.toDouble(),
-                  min: 0,
-                  max: 10,
-                  divisions: 10,
-                  label: '$selected',
-                  onChanged: (value) => refresh(() => selected = value.round()),
+            title: const Text('تنظیم اعشار فیلدها'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('مقدار پیش‌فرض: $fallback'),
+                    Slider(
+                      value: fallback.toDouble(), min: 0, max: 10, divisions: 10,
+                      label: '$fallback',
+                      onChanged: (v) => refresh(() => fallback = v.round()),
+                    ),
+                    const Divider(),
+                    ...fields.entries.map((field) => ListTile(
+                      dense: true,
+                      title: Text(field.value),
+                      trailing: DropdownButton<int>(
+                        value: selected[field.key] ?? fallback,
+                        items: List.generate(11, (i) => DropdownMenuItem(value: i, child: Text('$i'))),
+                        onChanged: (v) => refresh(() { if (v != null) selected[field.key] = v; }),
+                      ),
+                    )),
+                  ],
                 ),
-              ],
+              ),
             ),
             actions: [
               TextButton(
                 onPressed: () async {
-                  await _saveDecimalPlaces(2);
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setInt(_decimalPlacesPreferenceKey, 2);
+                  await prefs.remove('trade_details_field_decimal_places_v1');
+                  if (mounted) setState(() { _decimalPlaces = 2; _fieldDecimalPlaces.clear(); });
                   if (dialogContext.mounted) Navigator.pop(dialogContext);
                 },
-                child: const Text('بازنشانی به ۲'),
+                child: const Text('بازنشانی'),
               ),
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('انصراف'),
-              ),
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('انصراف')),
               FilledButton(
                 onPressed: () async {
-                  await _saveDecimalPlaces(selected);
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setInt(_decimalPlacesPreferenceKey, fallback);
+                  await prefs.setString('trade_details_field_decimal_places_v1', jsonEncode(selected));
+                  if (mounted) setState(() { _decimalPlaces = fallback; _fieldDecimalPlaces..clear()..addAll(selected); });
                   if (dialogContext.mounted) Navigator.pop(dialogContext);
                 },
                 child: const Text('ذخیره'),
