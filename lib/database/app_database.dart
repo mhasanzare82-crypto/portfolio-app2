@@ -956,6 +956,13 @@ class AppDatabase {
       await _createCustomGalleryTables(db);
     }
 
+    if (oldVersion < 18) {
+      final columns = await db.rawQuery('PRAGMA table_info(trades)');
+      if (!columns.any((column) => column['name'] == 'dollar_rate')) {
+        await db.execute('ALTER TABLE trades ADD COLUMN dollar_rate REAL NOT NULL DEFAULT 0');
+      }
+    }
+
     if (oldVersion < 15) {
       final experienceTables = await db.rawQuery(
           "SELECT name FROM sqlite_master WHERE type='table' AND name='trade_experiences'");
@@ -1621,12 +1628,6 @@ class AppDatabase {
       );
     }
 
-    if (oldVersion < 18) {
-      final columns = await db.rawQuery('PRAGMA table_info(trades)');
-      if (!columns.any((column) => column['name'] == 'dollar_rate')) {
-        await db.execute('ALTER TABLE trades ADD COLUMN dollar_rate REAL NOT NULL DEFAULT 0');
-      }
-    }
   }
 
   // ============================================================
