@@ -90,6 +90,7 @@ class _NewTradePageState extends State<NewTradePage> {
   bool _loadingFuturesAssets = false;
 
   final TextEditingController _marginController = TextEditingController();
+  final TextEditingController _dollarRateController = TextEditingController();
 
   final TextEditingController _volumeController = TextEditingController();
 
@@ -1263,6 +1264,7 @@ class _NewTradePageState extends State<NewTradePage> {
         marginAmount: margin,
         leverageValue: leverage,
         volumeAmount: _volume,
+        dollarRate: _toDouble(_dollarRateController.text),
         feePerHundred: _toDouble(
           _feeController.text,
         ),
@@ -3118,9 +3120,13 @@ class _NewTradePageState extends State<NewTradePage> {
           ],
         ),
 
-        const SizedBox(
-          height: 7,
+        const SizedBox(height: 10),
+        _compactNumberField(
+          controller: _dollarRateController,
+          label: 'قیمت هر دلار به تومان',
+          englishLabel: 'USD / Toman',
         ),
+        const SizedBox(height: 7),
 
         // ============================================================
         // دکمه‌های تغییر مارجین و اهرم
@@ -4518,6 +4524,7 @@ class _NewTradePageState extends State<NewTradePage> {
     _symbolController.dispose();
     _symbolFocusNode.dispose();
     _marginController.dispose();
+    _dollarRateController.dispose();
     _volumeController.dispose();
     _leverageController.dispose();
     _entryController.dispose();
