@@ -1830,6 +1830,61 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     return null;
   }
 
+  Widget _editableNumericRow(String key, String title, double? value,
+      {String suffix = ''}) {
+    return InkWell(
+      onTap: () async {
+        final controller = TextEditingController(text: value?.toString() ?? '');
+        final next = await showDialog<double>(
+          context: context,
+          builder: (ctx) => Directionality(
+            textDirection: TextDirection.rtl,
+            child: AlertDialog(
+              title: Text('ویرایش $title'),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                decoration: InputDecoration(labelText: title, suffixText: suffix),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+                FilledButton(onPressed: () {
+                  final parsed = double.tryParse(controller.text.trim().replaceAll(',', '.'));
+                  if (parsed != null && parsed.isFinite) Navigator.pop(ctx, parsed);
+                }, child: const Text('ذخیره')),
+              ],
+            ),
+          ),
+        );
+        controller.dispose();
+        if (next == null) return;
+        final Trade updated;
+        switch (key) {
+          case 'margin': updated = _trade.copyWith(marginAmount: next); break;
+          case 'leverage': updated = _trade.copyWith(leverageValue: next); break;
+          case 'volume': updated = _trade.copyWith(volumeAmount: next); break;
+          case 'fee': updated = _trade.copyWith(tradeFee: next); break;
+          case 'entry': updated = _trade.copyWith(entryPrice: next); break;
+          case 'exit': updated = _trade.copyWith(exitPrice: next); break;
+          case 'stop': updated = _trade.copyWith(stopPrice: next); break;
+          case 'target': updated = _trade.copyWith(targetPrice: next); break;
+          default: return;
+        }
+        await _tradeRepository.updateTrade(updated);
+        final refreshed = await _tradeRepository.getTrade(_trade.tradeId);
+        if (refreshed != null && mounted) setState(() => _trade = refreshed);
+        widget.onChanged();
+      },
+      child: Row(
+        children: [
+          Expanded(child: _parameterRow(title, value == null ? '—' : '${_formatNumber(value)}$suffix')),
+          const Padding(padding: EdgeInsets.only(left: 16), child: Icon(Icons.edit_outlined, size: 15)),
+        ],
+      ),
+    );
+  }
+
   Widget _parameterRow(
     String title,
     String value, {
@@ -1987,44 +2042,19 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
         );
 
       case 'margin':
-        return _parameterRow(
-          'مارجین',
-          _formatNumber(
-            _trade.marginAmount,
-          ),
-        );
+        return _editableNumericRow('margin', 'مارجین', _trade.marginAmount);
 
       case 'leverage':
-        return _parameterRow(
-          'اهرم',
-          '${_formatNumber(_trade.leverageValue)}x',
-        );
+        return _editableNumericRow('leverage', 'اهرم', _trade.leverageValue, suffix: 'x');
 
       case 'volume':
-        return _parameterRow(
-          'حجم معامله',
-          _formatNumber(
-            _trade.volumeAmount,
-          ),
-        );
+        return _editableNumericRow('volume', 'حجم معامله', _trade.volumeAmount);
 
       case 'fee':
-        return _parameterRow(
-          'کارمزد',
-          _formatNumber(
-            _trade.tradeFee,
-          ),
-        );
+        return _editableNumericRow('fee', 'کارمزد', _trade.tradeFee);
 
       case 'entry':
-        return _parameterRow(
-          'قیمت ورود',
-          _trade.entryPrice == null
-              ? '-'
-              : _formatNumber(
-                  _trade.entryPrice!,
-                ),
-        );
+        return _editableNumericRow('entry', 'قیمت ورود', _trade.entryPrice);
 
       case 'currentPrice':
         return _parameterRow(
@@ -2037,34 +2067,13 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
         );
 
       case 'exit':
-        return _parameterRow(
-          'قیمت خروج',
-          _trade.exitPrice == null
-              ? '-'
-              : _formatNumber(
-                  _trade.exitPrice!,
-                ),
-        );
+        return _editableNumericRow('exit', 'قیمت خروج', _trade.exitPrice);
 
       case 'stop':
-        return _parameterRow(
-          'حد ضرر',
-          _trade.stopPrice == null
-              ? '-'
-              : _formatNumber(
-                  _trade.stopPrice!,
-                ),
-        );
+        return _editableNumericRow('stop', 'حد ضرر', _trade.stopPrice);
 
       case 'target':
-        return _parameterRow(
-          'هدف',
-          _trade.targetPrice == null
-              ? '-'
-              : _formatNumber(
-                  _trade.targetPrice!,
-                ),
-        );
+        return _editableNumericRow('target', 'هدف', _trade.targetPrice);
 
       case 'riskDistance':
         return _parameterRow(
