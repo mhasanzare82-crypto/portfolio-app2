@@ -32,7 +32,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 17,
+      version: 18,
       onConfigure: (db) async {
         await db.execute(
           'PRAGMA foreign_keys = ON',
@@ -114,6 +114,8 @@ class AppDatabase {
         trade_status TEXT NOT NULL,
         trade_timeframe TEXT,
         margin_mode TEXT NOT NULL DEFAULT 'isolated',
+
+        dollar_rate REAL NOT NULL DEFAULT 0,
 
         margin_amount REAL NOT NULL DEFAULT 0,
         leverage_value REAL NOT NULL DEFAULT 0,
@@ -953,6 +955,20 @@ class AppDatabase {
     // Repair databases already marked as version 16.
     if (oldVersion < 17) {
       await _createCustomGalleryTables(db);
+    }
+
+    // ==========================================================
+    // VERSION 18
+    // DOLLAR RATE
+    // ==========================================================
+
+    if (oldVersion < 18) {
+      final columns = await db.rawQuery('PRAGMA table_info(trades)');
+      if (!columns.any((column) => column['name'] == 'dollar_rate')) {
+        await db.execute(
+          'ALTER TABLE trades ADD COLUMN dollar_rate REAL NOT NULL DEFAULT 0',
+        );
+      }
     }
 
     if (oldVersion < 15) {
@@ -2633,7 +2649,8 @@ class AppDatabase {
 
     _database = null;
   }
-}  // ============================================================
+
+  // ============================================================
   // CUSTOM IMAGE GALLERY
   // ============================================================
 
@@ -2664,5 +2681,4 @@ class AppDatabase {
       ON custom_gallery_images(topic_id)
     ''');
   }
-
-
+}
