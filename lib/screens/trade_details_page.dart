@@ -19,6 +19,7 @@ import 'package:saver_gallery/saver_gallery.dart';
 import 'package:shamsi_date/shamsi_date.dart';
 
 import '../calculators/pnl_calculator.dart';
+import '../database/app_database.dart';
 import '../models/custom_field.dart';
 import '../models/experience.dart';
 import '../models/trade.dart';
@@ -2449,6 +2450,37 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     return copied.path;
   }
 
+  Future<void> _saveTradeImageToAppGallery(String imagePath) async {
+    final db = await AppDatabase.instance.database;
+    const topicName = 'تصاویر معاملات';
+    final existingTopics = await db.query(
+      'custom_gallery_topics',
+      where: 'topic_name = ?',
+      whereArgs: [topicName],
+      limit: 1,
+    );
+    final topicId = existingTopics.isNotEmpty
+        ? (existingTopics.first['topic_id'] as num).toInt()
+        : await db.insert('custom_gallery_topics', {
+            'topic_name': topicName,
+            'created_at': DateTime.now().toIso8601String(),
+          });
+    final duplicates = await db.query(
+      'custom_gallery_images',
+      where: 'topic_id = ? AND image_path = ?',
+      whereArgs: [topicId, imagePath],
+      limit: 1,
+    );
+    if (duplicates.isEmpty) {
+      await db.insert('custom_gallery_images', {
+        'topic_id': topicId,
+        'image_path': imagePath,
+        'image_order': 0,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    }
+  }
+
   Future<void> _addTradeImage() async {
     final picker = ImagePicker();
 
@@ -2465,6 +2497,8 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
       image.path,
       'trade_images',
     );
+
+    await _saveTradeImageToAppGallery(permanentPath);
 
     final paths = [
       ..._trade.imagePaths,
@@ -2502,6 +2536,7 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     if (editedPath == null) return;
     final permanentPath =
         await _copyImagePermanently(editedPath, 'trade_images');
+    await _saveTradeImageToAppGallery(permanentPath);
     final paths = List<String>.from(_trade.imagePaths);
     paths[index] = permanentPath;
     final updated = _trade.copyWith(imagePaths: paths);
