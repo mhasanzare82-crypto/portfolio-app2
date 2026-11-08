@@ -747,7 +747,15 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
   }
 
   Future<void> _deleteTradeImage(int index) async {
+    final removedPath = _trade.imagePaths[index];
     final paths = List<String>.from(_trade.imagePaths)..removeAt(index);
+    // Remove the in-app gallery reference as well, preventing stale gallery entries.
+    final db = await AppDatabase.instance.database;
+    await db.delete(
+      'custom_gallery_images',
+      where: 'image_path = ?',
+      whereArgs: [removedPath],
+    );
     await _tradeRepository.updateTrade(_trade.copyWith(imagePaths: paths));
     final loaded = await _tradeRepository.getTrade(_trade.tradeId);
     if (loaded != null && mounted) setState(() => _trade = loaded);
