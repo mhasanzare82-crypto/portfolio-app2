@@ -193,6 +193,14 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
     'reason',
     'motivation',
     'scenario',
+    'marginProfitPercent',
+    'marginLossPercent',
+    'volumeProfitPercent',
+    'volumeLossPercent',
+    'pnlToman',
+    'marginToman',
+    'volumeToman',
+    'leverageToman',
   ];
 
   List<String> _parameterOrder = [
@@ -2322,6 +2330,27 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
           _formatDuration(durationSeconds < 0 ? 0 : durationSeconds),
         );
 
+      case 'marginProfitPercent':
+        final marginPct = _trade.marginAmount > 0 ? (_pnl / _trade.marginAmount) * 100 : 0.0;
+        return _parameterRow('درصد سود مارجین', _formatNumber(marginPct > 0 ? marginPct : 0) + '%', valueColor: marginPct > 0 ? AppColors.profit : null);
+      case 'marginLossPercent':
+        final marginLossPct = _trade.marginAmount > 0 ? (_pnl / _trade.marginAmount) * 100 : 0.0;
+        return _parameterRow('درصد ضرر مارجین', _formatNumber(marginLossPct < 0 ? marginLossPct.abs() : 0) + '%', valueColor: marginLossPct < 0 ? AppColors.loss : null);
+      case 'volumeProfitPercent':
+        final volumePct = _trade.volumeAmount > 0 ? (_pnl / _trade.volumeAmount) * 100 : 0.0;
+        return _parameterRow('درصد سود حجم', _formatNumber(volumePct > 0 ? volumePct : 0) + '%', valueColor: volumePct > 0 ? AppColors.profit : null);
+      case 'volumeLossPercent':
+        final volumeLossPct = _trade.volumeAmount > 0 ? (_pnl / _trade.volumeAmount) * 100 : 0.0;
+        return _parameterRow('درصد ضرر حجم', _formatNumber(volumeLossPct < 0 ? volumeLossPct.abs() : 0) + '%', valueColor: volumeLossPct < 0 ? AppColors.loss : null);
+      case 'pnlToman':
+        return _parameterRow('سود و زیان تومانی', _trade.dollarRate > 0 ? _formatNumber(_pnl * _trade.dollarRate) + ' تومان' : 'نرخ دلار ثبت نشده', valueColor: _valueColor('pnl', _pnl));
+      case 'marginToman':
+        return _parameterRow('مارجین تومانی', _trade.dollarRate > 0 ? _formatNumber(_trade.marginAmount * _trade.dollarRate) + ' تومان' : '—');
+      case 'volumeToman':
+        return _parameterRow('حجم تومانی', _trade.dollarRate > 0 ? _formatNumber(_trade.volumeAmount * _trade.dollarRate) + ' تومان' : '—');
+      case 'leverageToman':
+        return _parameterRow('اهرم تومانی', _trade.dollarRate > 0 ? _formatNumber(_trade.leverageValue * _trade.dollarRate) + ' تومان' : '—');
+
       case 'setup':
         if (_trade.entrySetup.trim().isEmpty) {
           return const SizedBox.shrink();
@@ -2698,6 +2727,11 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
         'حد ضرر': '${_trade.stopPrice ?? '—'}',
         'حد سود': '${_trade.targetPrice ?? '—'}',
         'سود و زیان نهایی (USD)': '${_trade.finalPnl}',
+        'قیمت دلار (تومان)': '${_trade.dollarRate}',
+        'سود و زیان تومانی': '${_trade.dollarRate > 0 ? _pnl * _trade.dollarRate : 0}',
+        'مارجین تومانی': '${_trade.marginAmount * _trade.dollarRate}',
+        'حجم تومانی': '${_trade.volumeAmount * _trade.dollarRate}',
+        'اهرم تومانی': '${_trade.leverageValue * _trade.dollarRate}',
       };
       for (final entry in rows.entries) {
         report.addParagraph(text: '${entry.key}: ${entry.value}');
@@ -2754,6 +2788,11 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
         ['حد ضرر', _trade.stopPrice],
         ['حد سود', _trade.targetPrice],
         ['سود و زیان نهایی USD', _trade.finalPnl],
+        ['قیمت دلار (تومان)', _trade.dollarRate],
+        ['سود و زیان تومانی', _pnl * _trade.dollarRate],
+        ['مارجین تومانی', _trade.marginAmount * _trade.dollarRate],
+        ['حجم تومانی', _trade.volumeAmount * _trade.dollarRate],
+        ['اهرم تومانی', _trade.leverageValue * _trade.dollarRate],
       ];
       for (var r = 0; r < rows.length; r++) {
         for (var c = 0; c < rows[r].length; c++) {
