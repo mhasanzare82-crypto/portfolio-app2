@@ -3243,6 +3243,13 @@ class _TradeDetailsPageState extends State<TradeDetailsPage> {
                 PopupMenuItem(value: 'zip', child: Text('بسته کامل همراه تصاویر')),
               ],
             ),
+            // Retain the legacy editor until all individual parameter cards
+            // have their own inline editor; this avoids making trade data read-only.
+            IconButton(
+              onPressed: _saving ? null : _editTrade,
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'ویرایش مشخصات معامله',
+            ),
           ],
         ),
         body: Column(
