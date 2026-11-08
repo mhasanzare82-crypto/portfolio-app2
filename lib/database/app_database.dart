@@ -32,7 +32,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 17,
+      version: 18,
       onConfigure: (db) async {
         await db.execute(
           'PRAGMA foreign_keys = ON',
@@ -118,6 +118,7 @@ class AppDatabase {
         margin_amount REAL NOT NULL DEFAULT 0,
         leverage_value REAL NOT NULL DEFAULT 0,
         volume_amount REAL NOT NULL DEFAULT 0,
+        dollar_rate REAL NOT NULL DEFAULT 0,
 
         fee_per_hundred REAL NOT NULL DEFAULT 0,
         trade_fee REAL NOT NULL DEFAULT 0,
@@ -1618,6 +1619,13 @@ class AppDatabase {
       await db.execute(
         'ALTER TABLE trades_v12 RENAME TO trades',
       );
+    }
+
+    if (oldVersion < 18) {
+      final columns = await db.rawQuery('PRAGMA table_info(trades)');
+      if (!columns.any((column) => column['name'] == 'dollar_rate')) {
+        await db.execute('ALTER TABLE trades ADD COLUMN dollar_rate REAL NOT NULL DEFAULT 0');
+      }
     }
   }
 
